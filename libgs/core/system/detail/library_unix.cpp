@@ -12,19 +12,22 @@ namespace fs = std::filesystem;
 namespace libgs
 {
 
-static class LIBGS_DECL_HIDDEN library_category : public std::error_category
+static class LIBGS_DECL_HIDDEN library_category final : public error_category_t
 {
 	LIBGS_DISABLE_COPY_MOVE(library_category)
 
 public:
 	library_category() = default;
+#if LIBGS_USING_BOOST_ASIO
+	virtual ~library_category() = default;
+#else //LIBGS_USING_BOOST_ASIO
 	~library_category() override = default;
+#endif //LIBGS_USING_BOOST_ASIO
 
 public:
 	[[nodiscard]] const char *name() const noexcept override {
 		return "libgs::library_error_category";
 	}
-
 	[[nodiscard]] std::string message(int) const override
 	{
 		auto err = dlerror();
@@ -87,15 +90,16 @@ error_code library::impl::load_native()
 
 	auto _file_name = m_file_name.string();
 	m_handle = dlopen(_file_name.c_str(), RTLD_LAZY | RTLD_LOCAL);
+
 	if( not m_handle )
-		return { errno, g_library_category };
+		return {errno, g_library_category};
 	return {};
 }
 
 error_code library::impl::unload_native()
 {
 	if( dlclose(m_handle) )
-		return { errno, g_library_category };
+		return {errno, g_library_category};
 	return {};
 }
 

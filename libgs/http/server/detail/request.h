@@ -38,7 +38,7 @@ public:
 		auto &conn = *m_connection;
 		if( not conn.is_open() )
 		{
-			error = make_error_code(std::errc::not_connected);
+			error = make_system_error_code(std::errc::not_connected);
 			return ;
 		}
 		using namespace libgs::operators;
@@ -73,7 +73,7 @@ public:
 
 		auto &conn = *self->m_connection;
 		if( not conn.is_open() )
-			co_return make_error_code(std::errc::not_connected);
+			co_return make_system_error_code(std::errc::not_connected);
 
 		constexpr size_t buf_size = 0xFFFF;
 		char buf[buf_size];
@@ -191,7 +191,7 @@ public:
 
 				if( not m_parser.commit_direct_body_read(bytes) )
 				{
-					error = make_error_code(std::errc::protocol_error);
+					error = make_system_error_code(std::errc::protocol_error);
 					return sum;
 				}
 				sum += bytes;
@@ -274,7 +274,7 @@ public:
 				if( not self->m_parser.commit_direct_body_read(bytes) )
 				{
 					co_return std::tuple {
-						make_error_code(std::errc::protocol_error), sum
+						make_system_error_code(std::errc::protocol_error), sum
 					};
 				}
 				sum += bytes;
@@ -465,7 +465,9 @@ public:
 		}
 		else
 		{
-			auto [error, source] = co_await co_read_all(self);
+			auto read_result = co_await co_read_all(self);
+			auto &[error, source] = read_result;
+
 			if( error )
 				co_return std::tuple<error_code,Buffer>{error, {}};
 
@@ -582,7 +584,7 @@ public:
 			token.stream->write(buffer, bytes);
 			if( not *token.stream )
 			{
-				error = make_error_code(std::errc::io_error);
+				error = make_system_error_code(std::errc::io_error);
 				break;
 			}
 			sum += bytes;
@@ -636,7 +638,7 @@ public:
 			{
 				file_token.stream->close();
 				co_return std::tuple<error_code,size_t> {
-					make_error_code(std::errc::io_error), 0
+					make_system_error_code(std::errc::io_error), 0
 				};
 			}
 			sum += bytes;
@@ -684,7 +686,7 @@ private:
 		if( read_size > sum.max_size() - offset or
 			(direct_remaining != 0 and direct_remaining > sum.max_size() - offset) )
 		{
-			error = make_error_code(std::errc::value_too_large);
+			error = make_system_error_code(std::errc::value_too_large);
 			return 0;
 		}
 		try
@@ -697,12 +699,12 @@ private:
 		}
 		catch(const std::length_error&)
 		{
-			error = make_error_code(std::errc::value_too_large);
+			error = make_system_error_code(std::errc::value_too_large);
 			return 0;
 		}
 		catch(const std::bad_alloc&)
 		{
-			error = make_error_code(std::errc::not_enough_memory);
+			error = make_system_error_code(std::errc::not_enough_memory);
 			return 0;
 		}
 		return read_size;
@@ -752,8 +754,10 @@ auto basic_request<Exec>::wait(Token &&token)
 	requires task_token_v<Token>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		m_impl->wait(token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		m_impl->wait(adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
@@ -852,8 +856,10 @@ auto basic_request<Exec>::read(const mutable_buffer &buf, Token &&token)
 	requires task_token_v<Token,size_t>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->read(buf, token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->read(buf, adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
@@ -889,7 +895,8 @@ auto basic_request<Exec>::read(Token &&token)
 		if constexpr( is_error_code_token_v<Token> )
 		{
 			Buffer result {};
-			ignore_unused(m_impl->read(buffer(result), token));
+			auto adapted_error = adapt_error_code(token);
+			ignore_unused(m_impl->read(buffer(result), adapted_error.get()));
 			return result;
 		}
 		else if constexpr( is_sync_opt_token_v<Token> )
@@ -919,7 +926,8 @@ auto basic_request<Exec>::read(Token &&token)
 	}
 	else if constexpr( is_error_code_token_v<Token> )
 	{
-		auto source = m_impl->read_all(token);
+		auto adapted_error = adapt_error_code(token);
+		auto source = m_impl->read_all(adapted_error.get());
 		return copy_buffer_data<Buffer>(std::move(source));
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
@@ -961,8 +969,10 @@ auto basic_request<Exec>::save_file(T &&opt, Token &&token)
 	requires file_task_token_v<T,Token>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->save_file(std::forward<T>(opt), token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->save_file(std::forward<T>(opt), adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;

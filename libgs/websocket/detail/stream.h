@@ -102,10 +102,14 @@ auto basic_stream<Exec>::read(Token &&token) requires
 
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		auto value = m_impl->read(token);
-		if( token )
+		auto adapted_error = adapt_error_code(token);
+		auto &error = adapted_error.get();
+
+		auto value = m_impl->read(error);
+		if( error )
 			return result_t{};
-		return impl::template convert_message<buffer_t>(std::move(value), token);
+
+		return impl::template convert_message<buffer_t>(std::move(value), error);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
@@ -160,10 +164,14 @@ auto basic_stream<Exec>::read_frame(Token &&token) requires
 
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		auto value = m_impl->read_frame(token);
-		if( token )
+		auto adapted_error = adapt_error_code(token);
+		auto &error = adapted_error.get();
+
+		auto value = m_impl->read_frame(error);
+		if( error )
 			return result_t{};
-		return impl::template convert_frame<buffer_t>(std::move(value), token);
+
+		return impl::template convert_frame<buffer_t>(std::move(value), error);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
@@ -218,8 +226,10 @@ auto basic_stream<Exec>::consume(Consumer &&consumer, Token &&token) requires (
 	task_token_v<Token,message_info_t>
 ){
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->consume(consumer, token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->consume(consumer, adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
@@ -303,8 +313,9 @@ auto basic_stream<Exec>::write_frame(const basic_data_frame<Buffer> &frame, Toke
 	const const_buffer body(libgs::buffer(frame.body));
 	if constexpr( is_error_code_token_v<Token> )
 	{
+		auto adapted_error = adapt_error_code(token);
 		return m_impl->write_frame(frame.type, body,
-			frame.continuation, frame.fin, token
+			frame.continuation, frame.fin, adapted_error.get()
 		);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
@@ -328,7 +339,7 @@ auto basic_stream<Exec>::write_frame(const basic_data_frame<Buffer> &frame, Toke
 			try {
 				if( const auto *data = static_cast<const std::byte*>(body.data());
 					body.size() != 0 and data == nullptr )
-					buffer_error = make_error_code(std::errc::invalid_argument);
+					buffer_error = make_system_error_code(std::errc::invalid_argument);
 				else
 				{
 					payload_owner = std::make_shared<std::vector<std::byte>>(body.size());
@@ -338,10 +349,10 @@ auto basic_stream<Exec>::write_frame(const basic_data_frame<Buffer> &frame, Toke
 				}
 			}
 			catch(const std::bad_alloc&) {
-				buffer_error = make_error_code(std::errc::not_enough_memory);
+				buffer_error = make_system_error_code(std::errc::not_enough_memory);
 			}
 			catch(...) {
-				buffer_error = make_error_code(std::errc::io_error);
+				buffer_error = make_system_error_code(std::errc::io_error);
 			}
 		}
 		return initiate_io<size_t>(get_executor(), [self = m_impl,
@@ -370,8 +381,10 @@ auto basic_stream<Exec>::wait_written(Token &&token)
 	requires task_token_v<Token>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		m_impl->wait_written(token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		m_impl->wait_written(adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
@@ -421,8 +434,10 @@ auto basic_stream<Exec>::write
 	requires completion_token_v<Token, size_t>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->write(type, body, options, token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->write(type, body, options, adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
@@ -445,12 +460,12 @@ auto basic_stream<Exec>::write
 				{
 					if( input.size() != 0 and input.data() == nullptr )
 					{
-						buffer_error = make_error_code(std::errc::invalid_argument);
+						buffer_error = make_system_error_code(std::errc::invalid_argument);
 						break;
 					}
 					if( input.size() > std::numeric_limits<size_t>::max() - size )
 					{
-						buffer_error = make_error_code(std::errc::value_too_large);
+						buffer_error = make_system_error_code(std::errc::value_too_large);
 						break;
 					}
 					size += input.size();
@@ -477,12 +492,12 @@ auto basic_stream<Exec>::write
 			}
 			catch(const std::bad_alloc&)
 			{
-				buffer_error = make_error_code(std::errc::not_enough_memory);
+				buffer_error = make_system_error_code(std::errc::not_enough_memory);
 				buffers.clear();
 			}
 			catch(...)
 			{
-				buffer_error = make_error_code(std::errc::io_error);
+				buffer_error = make_system_error_code(std::errc::io_error);
 				buffers.clear();
 			}
 		}
@@ -592,8 +607,10 @@ auto basic_stream<Exec>::ping(const const_buffer &payload, Token &&token)
 	requires task_token_v<Token, size_t>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->write_control(opcode::ping, payload, token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->write_control(opcode::ping, payload, adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
@@ -626,8 +643,10 @@ auto basic_stream<Exec>::pong(const const_buffer &payload, Token &&token)
 	requires task_token_v<Token, size_t>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->write_control(opcode::pong, payload, token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->write_control(opcode::pong, payload, adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
@@ -659,8 +678,10 @@ auto basic_stream<Exec>::wait_closed(Token &&token)
 	requires task_token_v<Token, close_info_t>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->wait_closed(token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->wait_closed(adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
@@ -697,8 +718,10 @@ auto basic_stream<Exec>::close(close_frame_t frame, Token &&token)
 	requires completion_token_v<Token, close_info_t>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->close(std::move(frame), token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->close(std::move(frame), adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;

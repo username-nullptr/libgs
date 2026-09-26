@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2025-2026 Xiaoqiang <username_nullptr@163.com>
 # SPDX-License-Identifier: MIT
 
+
 function(add_project target_name)
 
 	file(GLOB_RECURSE ${target_name}_sources "*.cpp" "*.c" "*.ixx")
@@ -27,6 +28,22 @@ function(add_project target_name)
 
 	target_compile_definitions(${target_name} PRIVATE ${target_micro}_EXPORTS)
 	target_compile_features(${target_name} PUBLIC cxx_std_20)
+
+	# Public headers use conforming variadic-macro expansion.  MSVC's legacy
+	# preprocessor cannot parse them, so installed consumers need the same mode
+	# as the library build itself.
+	target_compile_options(${target_name} PUBLIC
+		"$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/Zc:preprocessor>"
+	)
+	# libc++ is an ABI choice, not a private build warning.  Export it with
+	# every installed LibGS target so a plain target_link_libraries() consumer
+	# compiles and links against the same C++ standard library as LibGS.
+	if (LIBGS_USE_LIBCXX)
+		target_compile_options(${target_name} PUBLIC
+			"$<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>"
+		)
+		target_link_options(${target_name} PUBLIC -stdlib=libc++)
+	endif ()
 
 	target_include_directories(${target_name} PUBLIC
 		$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
@@ -55,5 +72,4 @@ function(add_project target_name)
 		LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 		ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 	)
-
 endfunction ()

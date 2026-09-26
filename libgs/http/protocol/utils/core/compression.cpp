@@ -3,8 +3,6 @@
 
 #include "compression.h"
 #include <libgs/core/string_vector.h>
-#include <array>
-#include <limits>
 
 #if LIBGS_HTTP_ZLIB_SUPPORT
 # include <zlib.h>
@@ -61,11 +59,11 @@ namespace libgs::http { namespace
 
 #if LIBGS_HTTP_ZLIB_SUPPORT
 [[nodiscard]] error_code codec_error() noexcept {
-	return make_error_code(std::errc::illegal_byte_sequence);
+	return make_system_error_code(std::errc::illegal_byte_sequence);
 }
 #else //LIBGS_HTTP_ZLIB_SUPPORT
 [[nodiscard]] error_code unsupported_error() noexcept {
-	return make_error_code(std::errc::operation_not_supported);
+	return make_system_error_code(std::errc::operation_not_supported);
 }
 #endif //LIBGS_HTTP_ZLIB_SUPPORT
 
@@ -236,7 +234,7 @@ sys_expected<std::string> gzip_encoder::append(std::string_view data, bool finis
 	{
 		if( data.empty() )
 			return std::string();
-		return sys_unexpected(make_error_code(std::errc::operation_not_permitted));
+		return sys_unexpected(make_system_error_code(std::errc::operation_not_permitted));
 	}
 	std::string output;
 	std::array<unsigned char,64 * 1024> buffer {};
@@ -403,7 +401,7 @@ sys_expected<std::string> gzip_decoder::append(std::string_view data, bool finis
 			auto produced = buffer.size() - m_impl->m_stream.avail_out;
 			if( produced > m_impl->m_max_output_size -
 				std::min(m_impl->m_output_size, m_impl->m_max_output_size) )
-				return sys_unexpected(make_error_code(std::errc::file_too_large));
+				return sys_unexpected(make_system_error_code(std::errc::file_too_large));
 
 			m_impl->m_output_size += produced;
 			output.append(reinterpret_cast<const char*>(buffer.data()), produced);

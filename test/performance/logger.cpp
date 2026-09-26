@@ -5,8 +5,6 @@
 #include "test.h"
 
 #include <libgs/utils/logger.h>
-#include <spdlog/sinks/null_sink.h>
-#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <array>
@@ -31,7 +29,6 @@ constexpr size_t file_log_count = 500 * libgs::test::performance_scale;
 
 constexpr size_t thread_count = 4;
 constexpr std::string_view disabled_logger_name = "libgs-performance-logger-disabled";
-constexpr std::string_view enabled_logger_name = "libgs-performance-logger-enabled";
 constexpr std::string_view file_logger_name = "libgs-performance-logger-file";
 
 template <typename Func>
@@ -163,28 +160,6 @@ void disabled_hot_paths()
 	);
 }
 
-void enabled_null_sink()
-{
-	auto &logger = logger_t::instance(enabled_logger_name);
-	logger_t::config_t config;
-	config.level.console = logger_t::level_t::info;
-	config.level.daily = logger_t::level_t::off;
-	logger.set_config(config);
-
-	libgs::test::print_performance_result(
-		"logger/enabled null sink literal (median of 3)", hot_path_count,
-		median_duration(hot_path_count, [&](size_t count) {
-			return measure_cached_literal(logger, count);
-		}), "call"
-	);
-	libgs::test::print_performance_result(
-		"logger/enabled null sink formatted (median of 3)", hot_path_count,
-		median_duration(hot_path_count, [&](size_t count) {
-			return measure_cached_formatted(logger, count);
-		}), "call"
-	);
-}
-
 void async_file_sink()
 {
 	libgs::test::temporary_directory directory;
@@ -218,12 +193,10 @@ void async_file_sink()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	spdlog::set_default_logger(spdlog::null_logger_mt("libgs-performance-null"));
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"logger disabled hot paths", disabled_hot_paths},
-		{"logger enabled null sink", enabled_null_sink},
 		{"logger async file sink", async_file_sink},
 	});
 }

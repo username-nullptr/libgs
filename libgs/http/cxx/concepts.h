@@ -6,10 +6,6 @@
 
 #include <libgs/core/global.h>
 
-#if LIBGS_OPENSSL_SUPPORT
-#include <asio/ssl.hpp>
-#endif //LIBGS_OPENSSL_SUPPORT
-
 namespace libgs::http
 {
 

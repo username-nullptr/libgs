@@ -13,7 +13,20 @@
 #include <libgs/http/protocol/utils/server/generator.h>
 #include <libgs/http/protocol/utils/server/parser.h>
 
+#include <array>
+
 static_assert(std::is_error_code_enum_v<libgs::http::parse_errc>);
+static_assert(not libgs::http::version::is_valid_v<libgs::http::version::none>);
+static_assert(libgs::http::version::is_valid_v<libgs::http::version::v10>);
+static_assert(libgs::http::version::is_valid_v<libgs::http::version::v11>);
+static_assert(not libgs::http::version::is_valid_v<
+	static_cast<libgs::http::version_enum>(0x0102)>);
+static_assert(std::string_view(
+	libgs::http::version::string<libgs::http::version::v10>()) == "1.0");
+static_assert(std::string_view(
+	libgs::http::version::string<libgs::http::version::v11>()) == "1.1");
+static_assert(libgs::http::version::number<libgs::http::version::v10>() == 1.0);
+static_assert(libgs::http::version::number<libgs::http::version::v11>() == 1.1);
 
 namespace
 {
@@ -26,31 +39,31 @@ libgs::const_buffer buffer(std::string_view value)
 void parser_errors()
 {
 	using namespace libgs::http;
-	const libgs::error_code empty = parse_errc::IDE;
-	LIBGS_TEST_CHECK(empty == parse_errc::IDE);
-	LIBGS_TEST_CHECK(parse_errc::IDE == empty);
-	LIBGS_TEST_CHECK(empty != parse_errc::RE);
-	LIBGS_TEST_CHECK(parse_errc::RE != empty);
-	LIBGS_TEST_CHECK_EQ(empty, make_error_code(parse_errc::IDE));
+	const libgs::error_code empty = parse_errc::inserted_data_empty;
+	LIBGS_TEST_CHECK(empty == parse_errc::inserted_data_empty);
+	LIBGS_TEST_CHECK(parse_errc::inserted_data_empty == empty);
+	LIBGS_TEST_CHECK(empty != parse_errc::request_end);
+	LIBGS_TEST_CHECK(parse_errc::request_end != empty);
+	LIBGS_TEST_CHECK_EQ(empty, make_error_code(parse_errc::inserted_data_empty));
 	LIBGS_TEST_CHECK_EQ(empty.category(), parse_error_category());
 	LIBGS_TEST_CHECK_EQ(empty.message(), "The inserted data is empty.");
 
 	server_parser parser;
 	auto result = parser.append({});
 	LIBGS_TEST_CHECK(not result);
-	LIBGS_TEST_CHECK(result.error() == parse_errc::IDE);
+	LIBGS_TEST_CHECK(result.error() == parse_errc::inserted_data_empty);
 
 	server_parser malformed_header;
 	result = malformed_header.append(buffer(
 		"GET / HTTP/1.1\r\nMissing-Colon\r\n\r\n"
 	));
 	LIBGS_TEST_CHECK(not result);
-	LIBGS_TEST_CHECK(result.error() == parse_errc::IHL);
+	LIBGS_TEST_CHECK(result.error() == parse_errc::invalid_header_line);
 
 	server_parser invalid_method;
 	result = invalid_method.append(buffer("FETCH / HTTP/1.1\r\n\r\n"));
 	LIBGS_TEST_CHECK(not result);
-	LIBGS_TEST_CHECK(result.error() == parse_errc::IHM);
+	LIBGS_TEST_CHECK(result.error() == parse_errc::invalid_method);
 
 	server_parser conflicting_size;
 	result = conflicting_size.append(buffer(
@@ -60,29 +73,88 @@ void parser_errors()
 		"Transfer-Encoding: chunked\r\n\r\n"
 	));
 	LIBGS_TEST_CHECK(not result);
-	LIBGS_TEST_CHECK(result.error() == parse_errc::SFE);
+	LIBGS_TEST_CHECK(result.error() == parse_errc::invalid_size_format);
 }
 
 void enum_input_validation()
 {
 	using namespace libgs::http;
-	const auto invalid_status = static_cast<status_enum>(999);
+	const auto invalid_status_code = static_cast<status_enum>(999);
 	const auto invalid_method = static_cast<method_enum>(0x8000);
-	const auto invalid_version = static_cast<version_enum>(0x0909);
 
-	LIBGS_TEST_CHECK(not status::check(invalid_status, false));
-	LIBGS_TEST_CHECK_EQ(std::string(status::description(invalid_status, false)), "");
-	LIBGS_TEST_CHECK_THROWS(status::check(invalid_status), libgs::invalid_argument);
+	LIBGS_TEST_CHECK(not status::check(invalid_status_code, false));
+	LIBGS_TEST_CHECK_EQ(
+		std::string(status::description(invalid_status_code, false)), "None"
+	);
+	LIBGS_TEST_CHECK_THROWS(status::check(invalid_status_code), libgs::invalid_argument);
 
 	LIBGS_TEST_CHECK(not method::check(invalid_method, false));
-	LIBGS_TEST_CHECK_EQ(std::string(method::string(invalid_method, false)), "");
+	LIBGS_TEST_CHECK_EQ(std::string(method::string(invalid_method, false)), "NONE");
 	LIBGS_TEST_CHECK_EQ(method::from_string("FETCH"), method::none);
 	LIBGS_TEST_CHECK_THROWS(method::from_string("FETCH", true), libgs::invalid_argument);
 	LIBGS_TEST_CHECK_THROWS(method("FETCH"), libgs::invalid_argument);
 
-	LIBGS_TEST_CHECK(not version::check(invalid_version, false));
-	LIBGS_TEST_CHECK_EQ(version::number(invalid_version, false), 0.0);
-	LIBGS_TEST_CHECK_THROWS(version::from_string("9.9"), libgs::runtime_error);
+}
+
+void version_contract()
+{
+	using namespace libgs::http;
+	struct valid_case
+	{
+		version_enum value;
+		std::string_view text;
+		double number;
+	};
+	constexpr std::array valid_cases {
+		valid_case {version::v10, "1.0", 1.0},
+		valid_case {version::v11, "1.1", 1.1},
+	};
+	for(const auto &[value, text, number] : valid_cases)
+	{
+		LIBGS_TEST_CHECK(version::check(value));
+		LIBGS_TEST_CHECK(version::check(value, false));
+		LIBGS_TEST_CHECK_EQ(std::string_view(version::string(value)), text);
+		LIBGS_TEST_CHECK_EQ(version::number(value), number);
+		LIBGS_TEST_CHECK_EQ(version::from_string(text), value);
+
+		const version from_enum(value);
+		const version from_text(text);
+		LIBGS_TEST_CHECK(from_enum.check());
+		LIBGS_TEST_CHECK_EQ(std::string_view(from_enum.string()), text);
+		LIBGS_TEST_CHECK_EQ(from_enum.number(), number);
+		LIBGS_TEST_CHECK_EQ(from_text.value, value);
+	}
+
+	constexpr std::array invalid_values {
+		version::none,
+		static_cast<version_enum>(0x0001),
+		static_cast<version_enum>(0x00ff),
+		static_cast<version_enum>(0x0102),
+		static_cast<version_enum>(0x0200),
+		static_cast<version_enum>(0xffff),
+	};
+	for(const auto value : invalid_values)
+	{
+		LIBGS_TEST_CHECK(not version::check(value, false));
+		LIBGS_TEST_CHECK_EQ(std::string_view(version::string(value, false)), "0.0");
+		LIBGS_TEST_CHECK_EQ(version::number(value, false), 0.0);
+		LIBGS_TEST_CHECK_THROWS(version::check(value), libgs::runtime_error);
+		LIBGS_TEST_CHECK_THROWS(version::string(value), libgs::runtime_error);
+		LIBGS_TEST_CHECK_THROWS(version::number(value), libgs::runtime_error);
+	}
+
+	const version unset;
+	LIBGS_TEST_CHECK(not unset.check(false));
+	LIBGS_TEST_CHECK_EQ(std::string_view(unset.string(false)), "0.0");
+	LIBGS_TEST_CHECK_EQ(unset.number(false), 0.0);
+
+	for(const std::string_view text : {
+		"", "0.0", "1", "1.00", "1.2", "2.0", "01.1", "1.1 ", " 1.1", "9.9"
+	})
+	{
+		LIBGS_TEST_CHECK_THROWS(version::from_string(text), libgs::runtime_error);
+		LIBGS_TEST_CHECK_THROWS(version(text), libgs::runtime_error);
+	}
 }
 
 void parser_reuse()
@@ -161,6 +233,20 @@ void request_parser()
 void response_parser()
 {
 	using namespace libgs::http;
+	for(const auto invalid_response : {
+		"HTTP/1.1 10\r\n\r\n",
+		"HTTP/1.1 099\r\n\r\n",
+		"HTTP/1.1 599\r\n\r\n",
+		"HTTP/1.1 600\r\n\r\n",
+		"HTTP/1.1 2x0\r\n\r\n",
+	})
+	{
+		client_parser invalid_parser;
+		auto invalid_result = invalid_parser.append(buffer(invalid_response));
+		LIBGS_TEST_CHECK(not invalid_result);
+		LIBGS_TEST_CHECK(invalid_result.error() == parse_errc::invalid_status_code);
+	}
+
 	const std::string response =
 		"HTTP/1.1 200 OK\r\n"
 		"Content-Type: text/plain\r\n"
@@ -441,11 +527,12 @@ void cookie_storage_policy()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"parser errors", parser_errors},
 		{"enum input validation", enum_input_validation},
+		{"HTTP version contract", version_contract},
 		{"parser reuse", parser_reuse},
 		{"request parser", request_parser},
 		{"response parser", response_parser},

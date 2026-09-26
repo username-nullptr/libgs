@@ -38,7 +38,7 @@ int main()
 | `coro::shared_mutex`、`coro::shared_lock` | 共享/独占锁 |
 | `coro::semaphore`、`coro::binary_semaphore` | 计数与二元许可 |
 | `coro::condition_variable` | 谓词、超时、单个/全部通知等待 |
-| `coro::wait()` | 等待 `std::future`、`std::thread` 或 `asio::thread_pool` |
+| `coro::wait()` | 等待 `std::future`、`std::thread`、`libgs::jthread` 或 `asio::thread_pool` |
 | `coro::goto_exec()` | 在另一 executor 上恢复，并返回原 executor |
 | `coro::goto_thread()` | 在工作线程上恢复 |
 

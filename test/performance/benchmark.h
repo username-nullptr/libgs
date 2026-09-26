@@ -44,7 +44,7 @@ inline void print_performance_result(
 		<< nanoseconds_per_operation << " ns/" << unit << ", "
 		<< std::chrono::duration<double,std::milli>(elapsed).count() << " ms, "
 		<< operations << ' ' << unit << " total, scale "
-		<< performance_scale << "\n";
+		<< performance_scale << '\n' << std::flush;
 }
 
 } //namespace libgs::test

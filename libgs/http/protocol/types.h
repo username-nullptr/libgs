@@ -80,7 +80,7 @@ LIBGS_HTTP_DEFINE_ENUM(uint32_t, status, LIBGS_HTTP_STATUS_TABLE, description);
 #undef X_MACRO
 
 #define LIBGS_HTTP_METHOD_TABLE \
-X_MACRO( none    , 0x0000 , ""        ) \
+X_MACRO( none    , 0x0000 , "NONE"    ) \
 X_MACRO( get     , 0x0001 , "GET"     ) \
 X_MACRO( put     , 0x0002 , "PUT"     ) \
 X_MACRO( post    , 0x0004 , "POST"    ) \
@@ -115,7 +115,7 @@ LIBGS_HTTP_DEFINE_ENUM(uint32_t, redirect, LIBGS_HTTP_REDIRECT_TYPE_TABLE, descr
 enum class request_target_form {
 	origin, absolute, authority, asterisk
 };
-using parameters = libgs::parameter_map;
+using parameters = parameter_map;
 
 } //namespace libgs::http
 #include <libgs/http/protocol/detail/types.h>

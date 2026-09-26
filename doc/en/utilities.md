@@ -70,6 +70,12 @@ The soft bus separates the typed publish/subscribe/cache API from transports:
 `LIBGS_UTILS_SBUS_DEFAULT_INTERFACE` selects `local` (default) or `udp` for
 unqualified APIs. Code that requires a transport should name it explicitly.
 
+`cache::wait_changed()` uses the common I/O completion-token model and waits for
+the next change after initiation. It is edge-triggered: earlier changes are not
+replayed. Use `changed()` for a persistent subscription. `cache::cancel()`
+cancels current waits without disconnecting persistent subscriptions or
+affecting waits initiated afterwards.
+
 The UDP transport is versioned, fragmented, rate-limited, and bounded in source
 tracking, reassembly, and callback delivery. It supports process, LAN, and
 routed multicast scopes. Delivery is best effort: overload protection may drop

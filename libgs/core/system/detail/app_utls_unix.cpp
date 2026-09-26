@@ -18,7 +18,7 @@ namespace libgs::app
 
 [[nodiscard]] static error_code sys_error()
 {
-	return { errno, std::system_category() };
+	return error_code(std::error_code(errno, std::system_category()));
 }
 
 sys_expected<path_t> file_path() noexcept

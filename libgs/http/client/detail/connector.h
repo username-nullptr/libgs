@@ -96,7 +96,7 @@ basic_connector<Exec>::do_connect(const connect_target &target) noexcept
 {
 	try {
 		if( target.host.empty() or target.port == 0 )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		if( target.tunnel )
 		{
@@ -104,7 +104,7 @@ basic_connector<Exec>::do_connect(const connect_target &target) noexcept
 				return sys_unexpected(error);
 
 			if( target.security == security_mode::tls and target.tunnel->security == security_mode::tls )
-				return sys_unexpected(make_error_code(std::errc::operation_not_supported));
+				return sys_unexpected(make_system_error_code(std::errc::operation_not_supported));
 		}
 		using resolver_t = asio::ip::basic_resolver<asio::ip::tcp,executor_t>;
 		resolver_t resolver(m_impl->m_exec);
@@ -157,7 +157,7 @@ basic_connector<Exec>::do_connect(const connect_target &target) noexcept
 
 			if( address_error and
 				not ::SSL_set_tlsext_host_name(socket.native_handle(), target.tunnel->host.c_str()) )
-				return sys_unexpected(make_error_code(std::errc::protocol_error));
+				return sys_unexpected(make_system_error_code(std::errc::protocol_error));
 
 			socket.set_verify_callback (
 				asio::ssl::host_name_verification(target.tunnel->host), error
@@ -197,7 +197,7 @@ basic_connector<Exec>::do_connect(const connect_target &target) noexcept
 
 			if( address_error and
 				not ::SSL_set_tlsext_host_name(socket.native_handle(), target.host.c_str()) )
-				return sys_unexpected(make_error_code(std::errc::protocol_error));
+				return sys_unexpected(make_system_error_code(std::errc::protocol_error));
 
 			socket.set_verify_callback (
 				asio::ssl::host_name_verification(target.host), error
@@ -231,16 +231,16 @@ basic_connector<Exec>::do_connect(const connect_target &target) noexcept
 			);
 		}
 #endif //LIBGS_OPENSSL_SUPPORT
-		return sys_unexpected(make_error_code(std::errc::operation_not_supported));
+		return sys_unexpected(make_system_error_code(std::errc::operation_not_supported));
 	}
 	catch(const std::system_error &ex) {
 		return sys_unexpected(ex.code());
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 }
 
 template <core_concepts::exec Exec>
@@ -249,7 +249,7 @@ basic_connector<Exec>::co_do_connect(const connect_target &target) noexcept
 {
 	try {
 		if( target.host.empty() or target.port == 0 )
-			co_return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			co_return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		if( target.tunnel )
 		{
@@ -257,7 +257,7 @@ basic_connector<Exec>::co_do_connect(const connect_target &target) noexcept
 				co_return sys_unexpected(error);
 
 			if( target.security == security_mode::tls and target.tunnel->security == security_mode::tls )
-				co_return sys_unexpected(make_error_code(std::errc::operation_not_supported));
+				co_return sys_unexpected(make_system_error_code(std::errc::operation_not_supported));
 		}
 		using resolver_t = asio::ip::basic_resolver<asio::ip::tcp,executor_t>;
 		resolver_t resolver(m_impl->m_exec);
@@ -313,7 +313,7 @@ basic_connector<Exec>::co_do_connect(const connect_target &target) noexcept
 
 			if( address_error and
 				not ::SSL_set_tlsext_host_name(socket.native_handle(), target.tunnel->host.c_str()) )
-				co_return sys_unexpected(make_error_code(std::errc::protocol_error));
+				co_return sys_unexpected(make_system_error_code(std::errc::protocol_error));
 
 			socket.set_verify_callback (
 				asio::ssl::host_name_verification(target.tunnel->host), error
@@ -359,7 +359,7 @@ basic_connector<Exec>::co_do_connect(const connect_target &target) noexcept
 
 			if( address_error and
 				not ::SSL_set_tlsext_host_name(socket.native_handle(), target.host.c_str()) )
-				co_return sys_unexpected(make_error_code(std::errc::protocol_error));
+				co_return sys_unexpected(make_system_error_code(std::errc::protocol_error));
 
 			socket.set_verify_callback (
 				asio::ssl::host_name_verification(target.host), error
@@ -398,16 +398,16 @@ basic_connector<Exec>::co_do_connect(const connect_target &target) noexcept
 			);
 		}
 #endif //LIBGS_OPENSSL_SUPPORT
-		co_return sys_unexpected(make_error_code(std::errc::operation_not_supported));
+		co_return sys_unexpected(make_system_error_code(std::errc::operation_not_supported));
 	}
 	catch(const std::system_error &ex) {
 		co_return sys_unexpected(ex.code());
 	}
 	catch(const std::bad_alloc&) {
-		co_return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		co_return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	co_return sys_unexpected(make_error_code(std::errc::io_error));
+	co_return sys_unexpected(make_system_error_code(std::errc::io_error));
 }
 
 } //namespace libgs::http

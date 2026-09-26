@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "retry.h"
+#include <cmath>
 
 namespace libgs::websocket
 {

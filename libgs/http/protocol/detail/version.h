@@ -4,59 +4,20 @@
 #ifndef LIBGS_HTTP_PROTOCOL_DETAIL_VERSION_H
 #define LIBGS_HTTP_PROTOCOL_DETAIL_VERSION_H
 
-#include <cmath>
-
 namespace libgs::http
 {
-
-inline bool version::check(enumeration version, bool _throw)
-{
-	switch(version)
-	{
-#define X_MACRO(e,v,d) case e:
-	LIBGS_HTTP_VERSION_TABLE
-#undef X_MACRO
-		return true;
-	default:
-		if( _throw )
-		{
-			runtime_error::loc_throw(std::format (
-				"libgs::http::version::check: Invalid http version: '{}'.",
-				version
-			));
-		}
-		break;
-	}
-	return false;
-}
 
 template <version_enum Version>
 consteval bool version::is_valid()
 {
-#define X_MACRO(e,v,d) if constexpr( Version == e ) return true;
-	LIBGS_HTTP_VERSION_TABLE
-#undef X_MACRO
-	else return false;
-}
-
-inline const char *version::string(enumeration version, bool _throw)
-{
-	switch(version)
+	if constexpr( Version > 0 )
 	{
-#define X_MACRO(e,v,d) case e: return d;
+#define X_MACRO(e,v,d) if constexpr( Version == e ) return true;
 		LIBGS_HTTP_VERSION_TABLE
+		else return false;
 #undef X_MACRO
-	default:
-		if( _throw )
-		{
-			runtime_error::loc_throw(std::format (
-				"libgs::http::version::string: Invalid http version: '{}'.",
-				version
-			));
-		}
-		break;
 	}
-	return "";
+	else return false;
 }
 
 template <version_enum Version>
@@ -65,14 +26,17 @@ consteval const char *version::string() requires is_valid_v<Version>
 #define X_MACRO(e,v,d) if constexpr( Version == e ) return d;
 	LIBGS_HTTP_VERSION_TABLE
 #undef X_MACRO
-	else return "";
+	else return "0.0";
 }
 
 constexpr version_enum version::from_string(std::string_view str)
 {
+	if( str != "0.0" )
+	{
 #define X_MACRO(e,v,d) if( str == d ) return version_enum::e;
-	LIBGS_HTTP_VERSION_TABLE
+		LIBGS_HTTP_VERSION_TABLE
 #undef X_MACRO
+	}
 	runtime_error::loc_throw(std::format (
 		"libgs::http::version::from_string: Invalid http version string: '{}'.", str
 	));
@@ -84,32 +48,6 @@ constexpr version::version(std::string_view str) :
 
 }
 
-inline double version::number(enumeration version, bool _throw)
-{
-	switch(version)
-	{
-#define X_MACRO(e,v,d) case e: \
-		return static_cast<double>((v >> 8) & 0xFF) + (v & 0xFF) / 10.0;
-		LIBGS_HTTP_VERSION_TABLE
-#undef X_MACRO
-	default:
-		if( _throw )
-		{
-			runtime_error::loc_throw(std::format (
-				"libgs::http::version::number: Invalid http version: '{}'.",
-				version
-			));
-		}
-		break;
-	}
-	return 0.0;
-}
-
-inline double version::number(bool _throw) const
-{
-	return number(value, _throw);
-}
-
 template <version_enum Version>
 consteval double version::number() requires is_valid_v<Version>
 {
@@ -118,8 +56,7 @@ consteval double version::number() requires is_valid_v<Version>
 		return static_cast<double>((v >> 8) & 0xFF) + (v & 0xFF) / 10.0;
 	LIBGS_HTTP_VERSION_TABLE
 #undef X_MACRO
-	else
-		return std::nan("");
+	else return 0.0;
 }
 
 } //namespace libgs::http

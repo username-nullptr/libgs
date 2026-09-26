@@ -4,8 +4,24 @@
 #include "utils.h"
 #include <thread>
 
-namespace libgs::coro
+namespace libgs::coro { namespace
 {
+
+template <typename Thread>
+awaitable<void> wait_thread(const Thread &thread)
+{
+	auto exec = co_await asio::this_coro::executor;
+	co_return co_await dispatch(exec, [&thread]() mutable -> awaitable<void>
+	{
+		co_await local_dispatch([&thread] {
+			return remove_const(thread).join();
+		}, use_awaitable);
+		co_return ;
+	},
+	use_awaitable);
+}
+
+} //namespace
 
 awaitable<void> wait(const asio::thread_pool &pool)
 {
@@ -22,15 +38,12 @@ awaitable<void> wait(const asio::thread_pool &pool)
 
 awaitable<void> wait(const std::thread &thread)
 {
-	auto exec = co_await asio::this_coro::executor;
-	co_return co_await dispatch(exec, [&thread]() mutable -> awaitable<void>
-	{
-		co_await local_dispatch([&thread] {
-			return remove_const(thread).join();
-		}, use_awaitable);
-		co_return ;
-	},
-	use_awaitable);
+	return wait_thread(thread);
+}
+
+awaitable<void> wait(const jthread &thread)
+{
+	return wait_thread(thread);
 }
 
 awaitable<asio::any_io_executor> goto_thread()

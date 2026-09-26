@@ -41,10 +41,10 @@ error_code canonical_error(error_code error) noexcept
 		);
 	}
 	if( category_name == std::generic_category().name() )
-		return {error.value(), std::generic_category()};
+		return error_code(std::error_code(error.value(), std::generic_category()));
 
 	if( category_name == std::system_category().name() )
-		return {error.value(), std::system_category()};
+		return error_code(std::error_code(error.value(), std::system_category()));
 	return error;
 }
 

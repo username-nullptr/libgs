@@ -80,7 +80,7 @@ error_code basic_stream<Exec>::impl::write_state_error() const noexcept
 		return {};
 
 	if( m_state == connection_state::failed )
-		return m_error ? m_error : make_error_code(std::errc::io_error);
+		return m_error ? m_error : make_system_error_code(std::errc::io_error);
 
 	if( m_state == connection_state::closed )
 		return make_error_code(errc::closed);
@@ -88,7 +88,7 @@ error_code basic_stream<Exec>::impl::write_state_error() const noexcept
 	if( m_state == connection_state::closing )
 	{
 		return m_peer_close ?
-			make_error_code(std::errc::broken_pipe) :
+			make_system_error_code(std::errc::broken_pipe) :
 			make_error_code(errc::closing);
 	}
 	return make_error_code(errc::not_open);
@@ -107,7 +107,7 @@ error_code basic_stream<Exec>::impl::read_state_error() const noexcept
 		return asio::error::eof;
 
 	if( m_state == connection_state::failed )
-		return m_error ? m_error : make_error_code(std::errc::io_error);
+		return m_error ? m_error : make_system_error_code(std::errc::io_error);
 
 	return make_error_code(errc::not_open);
 }
@@ -173,19 +173,19 @@ void basic_stream<Exec>::impl::adopt
 	}
 	if( not connection )
 	{
-		error = make_error_code(std::errc::invalid_argument);
+		error = make_system_error_code(std::errc::invalid_argument);
 		return ;
 	}
 	if( m_config.read_buffer_size == 0 or
 		m_config.ping_interval < std::chrono::milliseconds::zero() or
 		m_config.compression.level < -1 or m_config.compression.level > 9 )
 	{
-		error = make_error_code(std::errc::invalid_argument);
+		error = make_system_error_code(std::errc::invalid_argument);
 		return ;
 	}
 	if( options.stream_role != role::client and options.stream_role != role::server )
 	{
-		error = make_error_code(std::errc::invalid_argument);
+		error = make_system_error_code(std::errc::invalid_argument);
 		return ;
 	}
 	if( not detail::supported_negotiated_extensions(options.negotiated_extensions) )
@@ -195,7 +195,7 @@ void basic_stream<Exec>::impl::adopt
 	}
 	if( not connection->is_open() )
 	{
-		error = make_error_code(std::errc::not_connected);
+		error = make_system_error_code(std::errc::not_connected);
 		return ;
 	}
 	try {
@@ -204,7 +204,7 @@ void basic_stream<Exec>::impl::adopt
 		{
 			if( connection_exec != m_exec )
 			{
-				error = make_error_code(std::errc::invalid_argument);
+				error = make_system_error_code(std::errc::invalid_argument);
 				return ;
 			}
 		}
@@ -232,10 +232,10 @@ void basic_stream<Exec>::impl::adopt
 		error.clear();
 	}
 	catch(const std::bad_alloc&) {
-		error = make_error_code(std::errc::not_enough_memory);
+		error = make_system_error_code(std::errc::not_enough_memory);
 	}
 	catch(...) {
-		error = make_error_code(std::errc::io_error);
+		error = make_system_error_code(std::errc::io_error);
 	}
 }
 

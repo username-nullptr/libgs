@@ -18,7 +18,7 @@ class LIBGS_UTILS_TAPI cache
 
 public:
 	using subscriber_t = Subscriber;
-	using executor_type = typename subscriber_t::executor_type;
+	using executor_type = subscriber_t::executor_type;
 	using executor_t = executor_type;
 
 	using interface_t = subscriber_t::interface_t;
@@ -76,22 +76,26 @@ public:
 
 	template <typename Token, typename T = payload_t>
 	static constexpr bool is_token_v =
-		libgs::concepts::tf_opt_token<Token,sys_expected<changed_result<T>>> and
-		not is_detached_v<Token>;
+		libgs::concepts::dis_detached_tf_opt_token<
+			Token,error_code,changed_result<T>
+		>;
 
+	// Edge-triggered: only the next change after initiation is observed. Earlier
+	// changes are not replayed; use changed() for a persistent subscription.
 	template <concepts::topic_type T, typename Token = use_sync_t>
-	auto wait_changed(Token &&token = use_sync) noexcept
-		requires is_token_v<Token,optional<T>>;
+	auto wait_changed(Token &&token = {})
+		requires is_token_v<Token,T>;
 
 	template <typename Token = use_sync_t>
-	auto wait_changed(std::string_view topic, Token &&token = use_sync) noexcept
+	auto wait_changed(std::string_view topic, Token &&token = {})
 		requires is_token_v<Token>;
 
 	template <typename T, typename Token = use_sync_t>
-	auto wait_changed(std::string_view topic, Token &&token = use_sync) noexcept
+	auto wait_changed(std::string_view topic, Token &&token = {})
 		requires is_token_v<Token,T>;
 
 public:
+	cache &cancel() noexcept;
 	[[nodiscard]] subscriber_t subscriber() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 

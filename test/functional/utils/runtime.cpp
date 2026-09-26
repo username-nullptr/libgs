@@ -29,9 +29,9 @@ template <typename T>
 T wait_for(std::future<T> &future)
 {
 	auto &context = libgs::io_context();
-	while( future.wait_for(1ms) != std::future_status::ready )
+	while( future.wait_for(0ms) != std::future_status::ready )
 	{
-		context.poll();
+		context.run_for(1ms);
 		context.restart();
 	}
 	return future.get();
@@ -175,6 +175,83 @@ void settings_io_tokens()
 	settings.synced.disconnect();
 }
 
+void settings_error_token_lifetime_stress()
+{
+	constexpr size_t rounds = 2;
+	constexpr size_t token_kinds = 4;
+	libgs::test::temporary_directory directory;
+	auto &context = libgs::io_context();
+	context.restart();
+
+	// Reuse the singleton across --repeat iterations. Creating a fresh settings
+	// instance each time would intentionally retain one periodic sync timer per
+	// seed and measure singleton accumulation instead of I/O-token lifetimes.
+	auto &settings =
+		libgs::utils::settings::instance("libgs-test-settings-stress");
+	// This case targets completion-token lifetimes. Disable the independent
+	// periodic-sync coroutine so cancelled timer completions do not accumulate
+	// between --repeat iterations and distort the stress workload.
+	settings.ini().set_sync_period(0ms);
+	settings.ini().set_sync_on_delete(false);
+	const auto expected_error =
+		std::make_error_code(std::errc::no_such_file_or_directory);
+
+	std::atomic_size_t loaded_count {0};
+	std::atomic_size_t loaded_errors {0};
+	settings.loaded.connect([&](libgs::error_code error)
+	{
+		loaded_count.fetch_add(1, std::memory_order_relaxed);
+		if( error == expected_error )
+			loaded_errors.fetch_add(1, std::memory_order_relaxed);
+	});
+
+	libgs::test::random_sequence sequence;
+
+	for(size_t round = 0; round < rounds; ++round)
+	{
+		const auto missing = directory.path() /
+			("missing-" + std::to_string(round) + ".ini");
+
+		// Complete and destroy every token before starting the next one.  The
+		// old stress test queued all operations at once and could turn one slow
+		// completion into unbounded retained work across --repeat iterations.
+		auto future = settings.load(missing, libgs::use_future);
+		const auto future_result = wait_for(future);
+		LIBGS_TEST_CHECK(not future_result);
+		LIBGS_TEST_CHECK_EQ(future_result.error(), expected_error);
+
+		auto awaitable = asio::co_spawn(context,
+			[&settings, missing]() -> libgs::awaitable<libgs::sys_expected<>>
+			{
+				co_return co_await settings.load(missing, libgs::use_awaitable);
+			}, libgs::use_future);
+		const auto awaitable_result = wait_for(awaitable);
+		LIBGS_TEST_CHECK(not awaitable_result);
+		LIBGS_TEST_CHECK_EQ(awaitable_result.error(), expected_error);
+
+		auto deferred = settings.load(missing, libgs::deferred);
+		auto deferred_future = std::move(deferred)(libgs::use_future);
+		const auto deferred_result = wait_for(deferred_future);
+		LIBGS_TEST_CHECK(not deferred_result);
+		LIBGS_TEST_CHECK_EQ(deferred_result.error(), expected_error);
+
+		std::promise<libgs::error_code> callback_result;
+		auto callback_future = callback_result.get_future();
+		settings.load(missing, [&callback_result](libgs::error_code error)
+		{
+			callback_result.set_value(error);
+		});
+		LIBGS_TEST_CHECK_EQ(wait_for(callback_future), expected_error);
+
+		if( sequence.bounded(3) == 0 )
+			std::this_thread::yield();
+	}
+
+	LIBGS_TEST_CHECK_EQ(loaded_count.load(), rounds * token_kinds);
+	LIBGS_TEST_CHECK_EQ(loaded_errors.load(), rounds * token_kinds);
+	settings.loaded.disconnect();
+}
+
 void child_process_io()
 {
 	libgs::utils::process process;
@@ -315,7 +392,7 @@ void child_process_cancel_options()
 	#endif
 		LIBGS_TEST_CHECK(process.start());
 		const auto pid = process.pid();
-		std::error_code run_error;
+		libgs::error_code run_error;
 		auto completed = asio::co_spawn(context,
 		[&]() -> libgs::awaitable<void>
 		{
@@ -465,11 +542,12 @@ void logger_file_flush()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"settings persistence and signals", settings_persistence_and_signals},
 		{"settings IO tokens", settings_io_tokens},
+		{"settings error-token lifetime stress", settings_error_token_lifetime_stress},
 		{"child process IO", child_process_io},
 		{"completed child single-byte read", child_process_completed_single_byte_read},
 		{"child process environment and channels", child_process_environment_and_channels},

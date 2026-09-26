@@ -10,9 +10,13 @@ namespace libgs::http
 template <status_enum Status>
 consteval bool status::is_valid()
 {
+	if constexpr( Status >= 100 and Status <= 599 )
+	{
 #define X_MACRO(e,v,d) if constexpr( Status == e ) return true;
-	LIBGS_HTTP_STATUS_TABLE
+		LIBGS_HTTP_STATUS_TABLE
 #undef X_MACRO
+		else return false;
+	}
 	else return false;
 }
 
@@ -22,30 +26,38 @@ consteval const char *status::description() requires is_valid_v<Status>
 #define X_MACRO(e,v,d) if constexpr( Status == e ) return d;
 	LIBGS_HTTP_STATUS_TABLE
 #undef X_MACRO
-	else return "";
+	else return "None";
 }
 
 template <method_enum Method>
 consteval bool method::is_valid()
 {
+	if constexpr( Method > 0 )
+	{
 #define X_MACRO(e,v,d) if constexpr( Method == e ) return true;
-	LIBGS_HTTP_METHOD_TABLE
+		LIBGS_HTTP_METHOD_TABLE
+		else return false;
 #undef X_MACRO
+	}
 	else return false;
 }
 
 template <method_enum Method>
 consteval const char *method::string() requires is_valid_v<Method>
 {
+	if constexpr( Method > 0 )
+	{
 #define X_MACRO(e,v,d) if constexpr( Method == e ) return d;
-	LIBGS_HTTP_METHOD_TABLE
+		LIBGS_HTTP_METHOD_TABLE
+		else return "";
 #undef X_MACRO
+	}
 	else return "";
 }
 
 constexpr method_enum method::from_string(std::string_view str, bool _throw)
 {
-	if( not str.empty() )
+	if( str != "NONE" )
 	{
 #define X_MACRO(e,v,d) if( str == d ) return method::e;
 		LIBGS_HTTP_METHOD_TABLE

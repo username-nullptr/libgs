@@ -45,8 +45,10 @@ public:
 	{
 		using token_t = std::remove_cvref_t<Token>;
 		if constexpr( is_error_code_token_v<Token> )
-			return _write(body, token);
-
+		{
+			auto adapted_error = adapt_error_code(token);
+			return _write(body, adapted_error.get());
+		}
 		else if constexpr( is_sync_opt_token_v<Token> )
 		{
 			error_code error {};
@@ -120,7 +122,7 @@ public:
 				);
 				auto gcount = static_cast<size_t>(token->stream->gcount());
 				if( gcount == 0 )
-					return make_error_code(std::errc::io_error);
+					return make_system_error_code(std::errc::io_error);
 
 				error_code write_error {};
 				auto bytes = _write({buffer, gcount}, write_error);
@@ -132,7 +134,7 @@ public:
 					return write_error;
 
 				if( bytes != gcount )
-					return make_error_code(std::errc::io_error);
+					return make_system_error_code(std::errc::io_error);
 
 				if( auto progress_error = invoke_progress(progress, sum, total) )
 					return progress_error;
@@ -234,7 +236,7 @@ public:
 		else
 		{
 			token->stream->close();
-			error = make_error_code(std::errc::invalid_argument);
+			error = make_system_error_code(std::errc::invalid_argument);
 			return sum;
 		}
 		return sum;
@@ -318,7 +320,7 @@ public:
 			if( count == 0 )
 			{
 				co_return std::tuple {
-					make_error_code(std::errc::io_error), transferred
+					make_system_error_code(std::errc::io_error), transferred
 				};
 			}
 			auto [write_error, bytes] = co_await co_write (
@@ -334,7 +336,7 @@ public:
 			if( bytes != count )
 			{
 				co_return std::tuple {
-					make_error_code(std::errc::io_error), transferred
+					make_system_error_code(std::errc::io_error), transferred
 				};
 			}
 			auto progress_error = co_await co_invoke_progress (
@@ -482,7 +484,7 @@ public:
 			}
 		}
 		else
-			transfer_error = make_error_code(std::errc::invalid_argument);
+			transfer_error = make_system_error_code(std::errc::invalid_argument);
 
 		file.stream->close();
 		if( transfer_error )
@@ -500,6 +502,7 @@ public:
 		using opt_t = std::remove_cvref_t<AsyncOpt>;
 		using progress_t = std::remove_cvref_t<AsyncProgress>;
 		using token_t = std::remove_cvref_t<Token>;
+
 		token_t completion_token(std::forward<Token>(token));
 		auto exec = m_exec;
 
@@ -524,7 +527,7 @@ public:
 		error.clear();
 		if( m_generator.pro_state() != generator_state::chunk )
 		{
-			error = make_error_code(std::errc::protocol_error);
+			error = make_system_error_code(std::errc::protocol_error);
 			return 0;
 		}
 		std::string buf;
@@ -550,7 +553,7 @@ public:
 		if( self->m_generator.pro_state() != generator_state::chunk )
 		{
 			co_return std::tuple<error_code,size_t> {
-				make_error_code(std::errc::protocol_error), 0
+				make_system_error_code(std::errc::protocol_error), 0
 			};
 		}
 		std::string data {};
@@ -758,7 +761,7 @@ private:
 		error.clear();
 		if( not has_connection() )
 		{
-			error = make_error_code(std::errc::not_connected);
+			error = make_system_error_code(std::errc::not_connected);
 			return 0;
 		}
 		auto size = connection().write(const_buffer(data), error);
@@ -773,7 +776,7 @@ private:
 		error.clear();
 		if( not has_connection() )
 		{
-			error = make_error_code(std::errc::not_connected);
+			error = make_system_error_code(std::errc::not_connected);
 			return 0;
 		}
 		const const_buffer buffers[] {
@@ -791,7 +794,7 @@ private:
 		if( not self->has_connection() )
 		{
 			co_return std::tuple<error_code,size_t> {
-				make_error_code(std::errc::not_connected), 0
+				make_system_error_code(std::errc::not_connected), 0
 			};
 		}
 		auto [error, bytes] = co_await self->connection().write (
@@ -809,7 +812,7 @@ private:
 		if( not self->has_connection() )
 		{
 			co_return std::tuple<error_code,size_t> {
-				make_error_code(std::errc::not_connected), 0
+				make_system_error_code(std::errc::not_connected), 0
 			};
 		}
 		const const_buffer buffers[] {
@@ -944,9 +947,10 @@ auto basic_request_context<Method,Exec,Version>::upload_file
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
+		auto adapted_error = adapt_error_code(token);
 		return m_impl->upload_file (
 			std::move(norms), std::forward<T>(opt),
-			std::forward<Progress>(progress), token
+			std::forward<Progress>(progress), adapted_error.get()
 		);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
@@ -990,7 +994,10 @@ auto basic_request_context<Method,Exec,Version>::chunk_end
 	requires put_or_post
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->chunk_end(completion_headers, token);
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->chunk_end(completion_headers, adapted_error.get());
+	}
 
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{

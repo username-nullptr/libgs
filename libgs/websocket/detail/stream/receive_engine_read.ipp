@@ -27,7 +27,7 @@ message_info receive_engine::consume(Consumer &&consumer, error_code &error) noe
 	}
 	if( m_read_active )
 	{
-		error = make_error_code(std::errc::operation_in_progress);
+		error = make_system_error_code(std::errc::operation_in_progress);
 		return {};
 	}
 	m_read_active = true;
@@ -110,7 +110,7 @@ void receive_engine::async_consume(Consumer &&consumer, info_handler_t completio
 	if( state_error or self->receive_side().m_read_active )
 	{
 		auto error = self->receive_side().m_read_active ?
-			make_error_code(std::errc::operation_in_progress) : state_error;
+			make_system_error_code(std::errc::operation_in_progress) : state_error;
 
 		post_completion(self->receive_executor(),
 			std::move(completion), error, message_info{}

@@ -36,9 +36,10 @@ int main(int argc, const char *argv[])
 					std::format("hello from connection {}", generation),
 					libgs::use_awaitable
 				);
-				auto [error, message] = co_await
-					stream.read<std::string>(asio::as_tuple(libgs::use_awaitable));
+				auto read_result = co_await stream
+					.read<std::string>(asio::as_tuple(libgs::use_awaitable));
 
+				auto &[error, message] = read_result;
 				if( not error )
 				{
 					std::cout << '[' << generation << "] "

@@ -38,7 +38,7 @@ LIBGS_HTTP_TAPI error_code sync_http_connect
 	while( not header.ends_with("\r\n\r\n") )
 	{
 		if( header.size() >= 16 * 1024 )
-			return make_error_code(std::errc::message_size);
+			return make_system_error_code(std::errc::message_size);
 
 		char byte = 0;
 		asio::read(stream, asio::buffer(&byte, 1), error);
@@ -51,16 +51,16 @@ LIBGS_HTTP_TAPI error_code sync_http_connect
 
 	if( line_end == std::string::npos or first_space == std::string::npos or
 		first_space + 4 > line_end or not header.starts_with("HTTP/") )
-		return make_error_code(std::errc::protocol_error);
+		return make_system_error_code(std::errc::protocol_error);
 
 	const auto status = header.substr(first_space + 1, 3);
 	if( status == "407" )
-		return make_error_code(std::errc::permission_denied);
+		return make_system_error_code(std::errc::permission_denied);
 
 	if( status.size() != 3 or status[0] != '2' or
 		status[1] < '0' or status[1] > '9' or
 		status[2] < '0' or status[2] > '9' )
-		return make_error_code(std::errc::connection_refused);
+		return make_system_error_code(std::errc::connection_refused);
 	return {};
 }
 
@@ -82,12 +82,12 @@ LIBGS_HTTP_TAPI error_code sync_socks5_connect
 		return error;
 
 	if( selection[0] != 5 or selection[1] == 0xFF )
-		return make_error_code(std::errc::permission_denied);
+		return make_system_error_code(std::errc::permission_denied);
 
 	if( selection[1] == 2 )
 	{
 		if( not credentials )
-			return make_error_code(std::errc::permission_denied);
+			return make_system_error_code(std::errc::permission_denied);
 
 		const auto username = proxy.username.value_or("");
 		const auto password = proxy.password.value_or("");
@@ -108,10 +108,10 @@ LIBGS_HTTP_TAPI error_code sync_socks5_connect
 			return error;
 
 		if( selection[0] != 1 or selection[1] != 0 )
-			return make_error_code(std::errc::permission_denied);
+			return make_system_error_code(std::errc::permission_denied);
 	}
 	else if( selection[1] != 0 )
-		return make_error_code(std::errc::protocol_error);
+		return make_system_error_code(std::errc::protocol_error);
 
 	std::vector<uint8_t> request {5, 1, 0, 3,
 		static_cast<uint8_t>(target.host.size())
@@ -130,13 +130,13 @@ LIBGS_HTTP_TAPI error_code sync_socks5_connect
 		return error;
 
 	if( response[0] != 5 or response[2] != 0 )
-		return make_error_code(std::errc::protocol_error);
+		return make_system_error_code(std::errc::protocol_error);
 
 	if( response[1] != 0 )
 	{
 		return response[1] == 2 ?
-			make_error_code(std::errc::permission_denied) :
-			make_error_code(std::errc::connection_refused);
+			make_system_error_code(std::errc::permission_denied) :
+			make_system_error_code(std::errc::connection_refused);
 	}
 	size_t tail_size = 0;
 	if( response[3] == 1 )
@@ -154,7 +154,7 @@ LIBGS_HTTP_TAPI error_code sync_socks5_connect
 		tail_size = length + 2;
 	}
 	else
-		return make_error_code(std::errc::protocol_error);
+		return make_system_error_code(std::errc::protocol_error);
 
 	std::array<uint8_t,258> tail {};
 	asio::read(stream, asio::buffer(tail.data(), tail_size), error);
@@ -197,7 +197,7 @@ LIBGS_HTTP_TAPI awaitable<error_code> async_http_connect
 	while( not header.ends_with("\r\n\r\n") )
 	{
 		if( header.size() >= 16 * 1024 )
-			co_return make_error_code(std::errc::message_size);
+			co_return make_system_error_code(std::errc::message_size);
 
 		char byte = 0;
 		co_await asio::async_read(stream, asio::buffer(&byte, 1),
@@ -212,16 +212,16 @@ LIBGS_HTTP_TAPI awaitable<error_code> async_http_connect
 
 	if( line_end == std::string::npos or first_space == std::string::npos or
 		first_space + 4 > line_end or not header.starts_with("HTTP/") )
-		co_return make_error_code(std::errc::protocol_error);
+		co_return make_system_error_code(std::errc::protocol_error);
 
 	const auto status = header.substr(first_space + 1, 3);
 	if( status == "407" )
-		co_return make_error_code(std::errc::permission_denied);
+		co_return make_system_error_code(std::errc::permission_denied);
 
 	if( status.size() != 3 or status[0] != '2' or
 		status[1] < '0' or status[1] > '9' or
 		status[2] < '0' or status[2] > '9' )
-		co_return make_error_code(std::errc::connection_refused);
+		co_return make_system_error_code(std::errc::connection_refused);
 	co_return error_code{};
 }
 
@@ -250,12 +250,12 @@ LIBGS_HTTP_TAPI awaitable<error_code> async_socks5_connect
 		co_return error;
 
 	if( selection[0] != 5 or selection[1] == 0xFF )
-		co_return make_error_code(std::errc::permission_denied);
+		co_return make_system_error_code(std::errc::permission_denied);
 
 	if( selection[1] == 2 )
 	{
 		if( not credentials )
-			co_return make_error_code(std::errc::permission_denied);
+			co_return make_system_error_code(std::errc::permission_denied);
 
 		const auto username = proxy.username.value_or("");
 		const auto password = proxy.password.value_or("");
@@ -280,10 +280,10 @@ LIBGS_HTTP_TAPI awaitable<error_code> async_socks5_connect
 			co_return error;
 
 		if( selection[0] != 1 or selection[1] != 0 )
-			co_return make_error_code(std::errc::permission_denied);
+			co_return make_system_error_code(std::errc::permission_denied);
 	}
 	else if( selection[1] != 0 )
-		co_return make_error_code(std::errc::protocol_error);
+		co_return make_system_error_code(std::errc::protocol_error);
 
 	std::vector<uint8_t> request {5, 1, 0, 3,
 		static_cast<uint8_t>(target.host.size())
@@ -306,13 +306,13 @@ LIBGS_HTTP_TAPI awaitable<error_code> async_socks5_connect
 		co_return error;
 
 	if( response[0] != 5 or response[2] != 0 )
-		co_return make_error_code(std::errc::protocol_error);
+		co_return make_system_error_code(std::errc::protocol_error);
 
 	if( response[1] != 0 )
 	{
 		co_return response[1] == 2 ?
-			make_error_code(std::errc::permission_denied) :
-			make_error_code(std::errc::connection_refused);
+			make_system_error_code(std::errc::permission_denied) :
+			make_system_error_code(std::errc::connection_refused);
 	}
 	size_t tail_size = 0;
 	if( response[3] == 1 )
@@ -332,7 +332,7 @@ LIBGS_HTTP_TAPI awaitable<error_code> async_socks5_connect
 		tail_size = length + 2;
 	}
 	else
-		co_return make_error_code(std::errc::protocol_error);
+		co_return make_system_error_code(std::errc::protocol_error);
 
 	std::array<uint8_t,258> tail {};
 	co_await asio::async_read(stream, asio::buffer(tail.data(), tail_size),

@@ -4,9 +4,63 @@
 set(target_name gs.utils)
 add_project(${target_name} gs.coro)
 
-target_compile_definitions (
-	${target_name} PRIVATE LIBGS_UTILS_SHARED
+target_link_libraries(${target_name} PUBLIC libgs.spdlog)
+target_compile_definitions(${target_name} PRIVATE LIBGS_UTILS_SHARED)
+
+# GCC's LTO optimiser diagnoses spdlog's scoped_padder destructor as a
+# possible oversized string resize even though the third-party code guards the
+# negative padding path.  Keep that one provider implementation out of LTO so
+# LibGS sources retain the full warning set instead of globally disabling
+# -Wstringop-overflow.
+if (LIBGS_ENABLE_LTO AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+	set_source_files_properties(detail/spdlog.cpp PROPERTIES
+		COMPILE_OPTIONS -fno-lto
+	)
+endif ()
+
+# Keep a single spdlog implementation in gs.utils instead of instantiating its
+# header-only implementation in logger.cpp.  Shared builds export the spdlog
+# symbols from the utils library; static builds resolve them from the archive.
+if (NOT LIBGS_BUILD_STATIC)
+	target_compile_definitions(${target_name} PRIVATE spdlog_EXPORTS)
+endif ()
+
+option(LIBGS_BUILD_UTILITIES_SBUS_UDP
+	"-- ${PRO_NAME}: Build Utilities.SoftBus <UDP> interface." ON
 )
+set(LIBGS_UTILS_SBUS_DEFAULT_INTERFACE "local" CACHE STRING
+	"Select the Utilities.SoftBus default interface. (Default: local)"
+)
+set_property(CACHE LIBGS_UTILS_SBUS_DEFAULT_INTERFACE
+	PROPERTY STRINGS local udp
+)
+string(TOLOWER "${LIBGS_UTILS_SBUS_DEFAULT_INTERFACE}"
+	LIBGS_UTILS_SBUS_DEFAULT_INTERFACE_NORMALIZED
+)
+if (LIBGS_UTILS_SBUS_DEFAULT_INTERFACE_NORMALIZED STREQUAL "default")
+	set(LIBGS_UTILS_SBUS_DEFAULT_INTERFACE_NORMALIZED local)
+endif ()
+
+if (NOT LIBGS_UTILS_SBUS_DEFAULT_INTERFACE_NORMALIZED MATCHES "^(local|udp)$")
+	message(FATAL_ERROR
+		"${PRO_NAME}: Unknown Utilities.SoftBus interface: "
+		"${LIBGS_UTILS_SBUS_DEFAULT_INTERFACE}"
+	)
+endif ()
+
+set(LIBGS_UTILS_SBUS_DEFAULT_INTERFACE
+	"${LIBGS_UTILS_SBUS_DEFAULT_INTERFACE_NORMALIZED}" CACHE STRING
+	"Select the Utilities.SoftBus default interface. (Default: local)" FORCE
+)
+if (LIBGS_BUILD_UTILITIES AND
+	LIBGS_UTILS_SBUS_DEFAULT_INTERFACE STREQUAL "udp" AND
+	NOT LIBGS_BUILD_UTILITIES_SBUS_UDP)
+	message(FATAL_ERROR
+		"${PRO_NAME}: Unsupported Utilities.SoftBus interface: "
+		"${LIBGS_UTILS_SBUS_DEFAULT_INTERFACE}"
+	)
+endif ()
+
 set(LIBGS_UTILS_SBUS_UDP_INTERFACE_SUPPORT
 	${LIBGS_BUILD_UTILITIES_SBUS_UDP}
 )

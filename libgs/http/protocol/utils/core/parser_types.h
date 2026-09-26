@@ -20,18 +20,18 @@ enum class stage {
 };
 
 #define LIBGS_HTTP_PARSE_ERRC_TABLE \
-X_MACRO( RLTL  , 10000 , "Request line too long."      ) \
-X_MACRO( HLTL  , 10001 , "Header line too long."       ) \
-X_MACRO( IREQL , 10002 , "Invalid request line."       ) \
-X_MACRO( IRPYL , 10003 , "Invalid reply line."         ) \
-X_MACRO( IHM   , 10004 , "Invalid http method."        ) \
-X_MACRO( IHP   , 10005 , "Invalid http path."          ) \
-X_MACRO( IHSC  , 10006 , "Invalid http status code."   ) \
-X_MACRO( IHL   , 10007 , "Invalid header line."        ) \
-X_MACRO( ICL   , 10008 , "Invalid cookie line."        ) \
-X_MACRO( IDE   , 10009 , "The inserted data is empty." ) \
-X_MACRO( SFE   , 10010 , "Size format error."          ) \
-X_MACRO( RE    , 10011 , "This request is ended."      )
+X_MACRO( req_line_too_long    , 10000 , "Request line too long."      ) \
+X_MACRO( header_line_too_long , 10001 , "Header line too long."       ) \
+X_MACRO( invalid_req_line     , 10002 , "Invalid request line."       ) \
+X_MACRO( invalid_reply_line   , 10003 , "Invalid reply line."         ) \
+X_MACRO( invalid_method       , 10004 , "Invalid http method."        ) \
+X_MACRO( invalid_path         , 10005 , "Invalid http path."          ) \
+X_MACRO( invalid_status_code  , 10006 , "Invalid http status code."   ) \
+X_MACRO( invalid_header_line  , 10007 , "Invalid header line."        ) \
+X_MACRO( invalid_cookie_line  , 10008 , "Invalid cookie line."        ) \
+X_MACRO( inserted_data_empty  , 10009 , "The inserted data is empty." ) \
+X_MACRO( invalid_size_format  , 10010 , "Size format error."          ) \
+X_MACRO( request_end          , 10011 , "This request is ended."      )
 
 enum class parse_errc
 {
@@ -41,7 +41,7 @@ enum class parse_errc
 };
 
 [[nodiscard]] LIBGS_HTTP_API
-const std::error_category &parse_error_category() noexcept;
+const error_category_t &parse_error_category() noexcept;
 
 [[nodiscard]] LIBGS_HTTP_API
 error_code make_error_code(parse_errc value) noexcept;

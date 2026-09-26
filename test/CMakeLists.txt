@@ -33,6 +33,15 @@ endif ()
 
 function(add_libgs_ctest test_name)
 	add_test(NAME ${test_name} COMMAND ${LIBGS_TEST_LAUNCHER} ${ARGN})
+	# CTest may be launched from an environment whose PATH contains another
+	# MinGW distribution.  Put the runtime matching CMAKE_CXX_COMPILER first for
+	# every suite, not just the functional tests, so DLL resolution is stable.
+	if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.22 AND libgs_gnu_runtime_dir)
+		set_property(TEST ${test_name} APPEND PROPERTY
+			ENVIRONMENT_MODIFICATION
+			"PATH=path_list_prepend:${libgs_gnu_runtime_dir}"
+		)
+	endif ()
 endfunction()
 
 
@@ -76,13 +85,33 @@ function(configure_libgs_sanitized_test test_name)
 			"AddressSanitizer" "LeakSanitizer" "ThreadSanitizer" "runtime error:"
 		)
 		if (LIBGS_ENABLE_TEST_SANITIZERS)
+			set(libgs_asan_options
+				"detect_leaks=0:halt_on_error=1:abort_on_error=1"
+			)
+			# Ubuntu's libc++abi 18 frees standard exception messages through
+			# free(), while compiler-rt records their allocation as operator new.
+			# A standalone throw/catch reproduces this runtime mismatch, so do not
+			# treat it as a project allocation error in libc++ sanitizer builds.
+			if (LIBGS_USE_LIBCXX AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+				string(APPEND libgs_asan_options ":alloc_dealloc_mismatch=0")
+			endif ()
+
 			set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT
-				"ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1"
+				"ASAN_OPTIONS=${libgs_asan_options}"
 				"UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1"
 			)
 		else ()
+			set(libgs_tsan_options "halt_on_error=1")
+			# Distribution libc++ is not TSan-instrumented. Its future and
+			# condition-variable internals otherwise produce false races (and can
+			# stall waits), while project code remains fully instrumented.
+			if (LIBGS_USE_LIBCXX AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+				string(APPEND libgs_tsan_options
+					":ignore_noninstrumented_modules=1")
+			endif ()
+
 			set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT
-				"TSAN_OPTIONS=halt_on_error=1"
+				"TSAN_OPTIONS=${libgs_tsan_options}"
 			)
 		endif ()
 	endif ()
@@ -99,13 +128,6 @@ function(configure_libgs_functional_test test_name)
 		"LIBGS_TEST_SEED=${LIBGS_FUNCTIONAL_SEED}"
 		"LIBGS_TEST_FAIL_FAST=1"
 	)
-	if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.22 AND libgs_gnu_runtime_dir)
-		set_property(TEST ${test_name} APPEND PROPERTY
-			ENVIRONMENT_MODIFICATION
-			"PATH=path_list_prepend:${libgs_gnu_runtime_dir}"
-		)
-	endif ()
-
 	configure_libgs_sanitized_test(${test_name})
 endfunction()
 
@@ -187,4 +209,8 @@ else ()
 			"LIBGS_BUILD_PERFORMANCE_TESTS for opt-in non-functional suites."
 		)
 	endif ()
+endif ()
+
+if (LIBGS_BUILD_CMAKE_TESTS)
+	add_subdirectory(cmake)
 endif ()

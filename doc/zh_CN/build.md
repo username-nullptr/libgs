@@ -14,8 +14,9 @@
 | Clang | 17 或更高版本 |
 | MSVC | 19.30 或更高版本（Visual Studio 2022+） |
 
-仓库已包含 standalone Asio、spdlog 和 nlohmann/json。OpenSSL、zlib 与
-liburing 只在启用对应功能时作为系统依赖。
+仓库已包含 standalone Asio 和 spdlog，并默认使用随附版本；也可以切换到已安装的
+外部包，或使用 Boost.Asio 替代 standalone Asio。OpenSSL、zlib 与 liburing 只在
+启用对应功能时作为系统依赖。
 
 ## 模块选择
 
@@ -78,6 +79,35 @@ HTTP zlib 会在构建 WebSocket 时自动启用其 zlib 支持；只有关闭 H
 | `LIBGS_LOW_MEMORY_DEBUG_INFO` | GCC Debug 构建 | 使用 `-g1` 降低编译内存 |
 
 测试专用开关见[测试](../../test/README.md)。
+
+依赖选择：
+
+| 开关 | 默认值 | 作用 |
+| --- | :---: | --- |
+| `LIBGS_ASIO_PROVIDER` | 空（`BUNDLED`） | 选择 `BUNDLED`、`EXTERNAL` 或 `BOOST` Asio；不区分大小写 |
+| `LIBGS_USE_BUNDLED_SPDLOG` | ON | 使用随附的 spdlog |
+| `LIBGS_BOOST_INSTALL_PREFIX` | 空 | 可选的 Boost 安装前缀 |
+| `LIBGS_ASIO_INSTALL_PREFIX` | 空 | 可选的 standalone Asio 安装前缀 |
+| `LIBGS_SPDLOG_INSTALL_PREFIX` | 空 | 可选的 spdlog 安装前缀 |
+
+使用外部 standalone Asio 和 spdlog 时，选择外部 Asio provider 并关闭随附 spdlog。
+LibGS 会先查找对应的 CMake package，找不到时再到指定安装前缀下查找头文件：
+
+```sh
+cmake -S . -B build \
+  -DLIBGS_ASIO_PROVIDER=EXTERNAL \
+  -DLIBGS_ASIO_INSTALL_PREFIX=/path/to/asio \
+  -DLIBGS_USE_BUNDLED_SPDLOG=OFF \
+  -DLIBGS_SPDLOG_INSTALL_PREFIX=/path/to/spdlog
+```
+
+使用 Boost.Asio 时选择 `BOOST` provider：
+
+```sh
+cmake -S . -B build \
+  -DLIBGS_ASIO_PROVIDER=BOOST \
+  -DLIBGS_BOOST_INSTALL_PREFIX=/path/to/boost
+```
 
 ## 产物与安装
 

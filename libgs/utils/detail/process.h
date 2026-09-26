@@ -621,7 +621,7 @@ public:
 					}
 					catch(const std::bad_alloc&)
 					{
-						complete(make_error_code(std::errc::not_enough_memory), {});
+						complete(make_system_error_code(std::errc::not_enough_memory), {});
 						return ;
 					}
 				}
@@ -641,7 +641,7 @@ public:
 					));
 				}
 				catch(const std::bad_alloc&) {
-					complete(make_error_code(std::errc::not_enough_memory), {});
+					complete(make_system_error_code(std::errc::not_enough_memory), {});
 				}
 			}
 		}
@@ -872,7 +872,7 @@ auto basic_process<CharT,Exec>::join(Token &&token)
 	{
 		if( not m_impl )
 		{
-			const auto error = make_error_code(std::errc::invalid_argument);
+			const auto error = make_system_error_code(std::errc::invalid_argument);
 			if constexpr( is_error_code_token_v<Token> )
 			{
 				token = error;
@@ -1164,10 +1164,10 @@ auto basic_process<CharT,Exec>::exec(Exec0 &&exec, const string_t &cmd,
 			return sys_unexpected(exception.code());
 		}
 		catch(const std::bad_alloc&) {
-			return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+			return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 		}
 		catch(...) {}
-		return sys_unexpected(make_error_code(std::errc::io_error));
+		return sys_unexpected(make_system_error_code(std::errc::io_error));
 	}();
 
 	if constexpr( is_error_code_token_v<Token> )
@@ -1175,14 +1175,14 @@ auto basic_process<CharT,Exec>::exec(Exec0 &&exec, const string_t &cmd,
 		if( not object_expected )
 		{
 			token = object_expected.error();
-			return sys_expected<int>(sys_unexpected(token));
+			return sys_expected<int>(sys_unexpected(error_code(token)));
 		}
 		auto object = std::move(*object_expected);
 		auto started = object->start();
 		if( not started )
 		{
 			token = started.error();
-			return sys_expected<int>(sys_unexpected(token));
+			return sys_expected<int>(sys_unexpected(error_code(token)));
 		}
 		auto result = object->m_impl->join_expected (
 			std::chrono::nanoseconds::zero()

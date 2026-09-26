@@ -46,132 +46,137 @@ retry_open_request_factory adapt_retry_open_request_factory(Factory &&factory)
 }
 
 template <typename Exec>
-[[nodiscard]] LIBGS_WEBSOCKET_TAPI asio::awaitable<
-	optional<std::tuple<error_code,basic_retry_open_result<Exec>>>,Exec>
-co_retry_open(basic_client<Exec> *active_client,
-	retry_open_request_factory active_factory,
+[[nodiscard]] LIBGS_WEBSOCKET_TAPI
+asio::awaitable<optional<std::tuple<error_code,basic_retry_open_result<Exec>>>,Exec>
+co_retry_open(basic_client<Exec> *active_client, retry_open_request_factory active_factory,
 	retry_open_options active_options, Exec active_exec)
 {
 	using result_t = basic_retry_open_result<Exec>;
 	using completion_t = std::tuple<error_code,result_t>;
+
 	auto cancellation = co_await asio::this_coro::cancellation_state;
-			result_t result(active_exec);
-			if( not valid_retry_open_options(active_options) )
+	result_t result(active_exec);
+
+	if( not valid_retry_open_options(active_options) )
+	{
+		auto error = make_system_error_code(std::errc::invalid_argument);
+		result.last_failure.error = error;
+
+		co_return completion_t {
+			error, std::move(result)
+		};
+	}
+	retry_open_context previous;
+	for(;;)
+	{
+		if( cancellation.cancelled() != asio::cancellation_type::none )
+		{
+			auto error = asio::error::make_error_code (
+				asio::error::operation_aborted
+			);
+			result.last_failure = previous;
+			result.last_failure.error = error;
+
+			co_return completion_t {
+				error, std::move(result)
+			};
+		}
+		connect_request request;
+		try {
+			auto generated_result = co_await asio::co_spawn (
+				active_exec, active_factory(previous), asio::as_tuple(deferred)
+			);
+			auto &[exception, generated] = generated_result;
+			if( auto error = exception_error(exception) )
 			{
-				auto error = make_error_code(std::errc::invalid_argument);
+				result.last_failure = previous;
 				result.last_failure.error = error;
 
 				co_return completion_t {
 					error, std::move(result)
 				};
 			}
-			retry_open_context previous;
-			for(;;)
-			{
-				if( cancellation.cancelled() != asio::cancellation_type::none )
-				{
-					auto error = asio::error::make_error_code (
-						asio::error::operation_aborted
-					);
-					result.last_failure = previous;
-					result.last_failure.error = error;
+			request = std::move(generated);
+		}
+		catch(...)
+		{
+			auto error = exception_error(std::current_exception());
+			result.last_failure = previous;
+			result.last_failure.error = error;
 
-					co_return completion_t {
-						error, std::move(result)
-					};
-				}
-				connect_request request;
-				try {
-					auto [exception, generated] = co_await asio::co_spawn (
-						active_exec, active_factory(previous), asio::as_tuple(deferred)
-					);
-					if( auto error = exception_error(exception) )
-					{
-						result.last_failure = previous;
-						result.last_failure.error = error;
+			co_return completion_t {
+				error, std::move(result)
+			};
+		}
+		retry_open_context opening {
+			.attempt = result.attempts + 1,
+			.endpoint = request.endpoint,
+		};
+		observe_retry_open(active_options,
+			retry_open_event::opening, opening
+		);
+		typename result_t::diagnostics_t diagnostics;
+		++result.attempts;
 
-						co_return completion_t {
-							error, std::move(result)
-						};
-					}
-					request = std::move(generated);
-				}
-				catch(...) {
-					auto error = exception_error(std::current_exception());
-					result.last_failure = previous;
-					result.last_failure.error = error;
+		auto open_result = co_await active_client->open (
+			std::move(request), diagnostics, asio::as_tuple(asio::use_awaitable_t<Exec>{})
+		);
+		auto &[open_error, stream] = open_result;
+		if( not open_error )
+		{
+			result.stream = std::move(stream);
+			result.diagnostics = std::move(diagnostics);
 
-					co_return completion_t {
-						error, std::move(result)
-					};
-				}
-				retry_open_context opening {
-					.attempt = result.attempts + 1,
-					.endpoint = request.endpoint,
-				};
-				observe_retry_open(active_options,
-					retry_open_event::opening, opening
-				);
-				typename result_t::diagnostics_t diagnostics;
-				++result.attempts;
+			co_return completion_t {
+				error_code{}, std::move(result)
+			};
+		}
+		retry_open_context failure {
+			.attempt = result.attempts,
+			.error = open_error,
+			.endpoint = diagnostics.endpoint,
+		};
+		if( diagnostics.reply )
+			failure.http_status = diagnostics.reply->status();
 
-				auto [open_error, stream] = co_await active_client->open (
-					std::move(request), diagnostics,
-					asio::as_tuple(asio::use_awaitable_t<Exec>{})
-				);
-				if( not open_error )
-				{
-					result.stream = std::move(stream);
-					result.diagnostics = std::move(diagnostics);
+		result.diagnostics = std::move(diagnostics);
+		result.last_failure = failure;
 
-					co_return completion_t {
-						error_code{}, std::move(result)
-					};
-				}
-				retry_open_context failure {
-					.attempt = result.attempts,
-					.error = open_error,
-					.endpoint = diagnostics.endpoint,
-				};
-				if( diagnostics.reply )
-					failure.http_status = diagnostics.reply->status();
+		if( open_error == asio::error::operation_aborted or
+			(active_options.max_attempts != 0 and
+			 result.attempts >= active_options.max_attempts) )
+		{
+			co_return completion_t {
+				open_error, std::move(result)
+			};
+		}
+		auto [retry, delay] = decide_retry_open(active_options, failure);
+		if( not retry )
+		{
+			co_return completion_t {
+				open_error, std::move(result)
+			};
+		}
+		delay = std::max(delay, std::chrono::milliseconds::zero());
+		observe_retry_open(active_options, retry_open_event::waiting, failure);
 
-				result.diagnostics = std::move(diagnostics);
-				result.last_failure = failure;
+		asio::steady_timer timer(active_exec);
+		timer.expires_after(delay);
 
-				if( open_error == asio::error::operation_aborted or
-					(active_options.max_attempts != 0 and
-					 result.attempts >= active_options.max_attempts) )
-				{
-					co_return completion_t {
-						open_error, std::move(result)
-					};
-				}
-				auto [retry, delay] = decide_retry_open(active_options, failure);
-				if( not retry )
-				{
-					co_return completion_t {
-						open_error, std::move(result)
-					};
-				}
-				delay = std::max(delay, std::chrono::milliseconds::zero());
-				observe_retry_open(active_options, retry_open_event::waiting, failure);
+		auto wait_result = co_await timer.async_wait (
+			asio::as_tuple(asio::use_awaitable_t<Exec>{})
+		);
+		if( auto &[wait_error] = wait_result; wait_error )
+		{
+			auto error = libgs::detail::canonical_error(wait_error);
+			result.last_failure.error = error;
 
-				asio::steady_timer timer(active_exec);
-				timer.expires_after(delay);
-
-				if( auto [wait_error] = co_await timer.async_wait(
-					asio::as_tuple(asio::use_awaitable_t<Exec>{})); wait_error )
-				{
-					auto error = libgs::detail::canonical_error(wait_error);
-					result.last_failure.error = error;
-
-					co_return completion_t {
-						error, std::move(result)
-					};
-				}
-				previous = std::move(failure);
-			}
+			co_return completion_t {
+				error, std::move(result)
+			};
+		}
+		previous = std::move(failure);
+	}
 }
 
 template <typename Exec, typename Token>
@@ -180,27 +185,33 @@ template <typename Exec, typename Token>
 {
 	using result_t = basic_retry_open_result<Exec>;
 	using token_t = std::remove_cvref_t<Token>;
+
 	token_t completion_token(std::forward<Token>(token));
 	auto operation_exec = client.get_executor();
 
-	return asio::async_initiate<token_t,void(error_code,result_t)>(
-	[operation_exec, active_client = &client,
-	 active_factory = std::move(request_factory),
-	 active_options = std::move(options)](auto completion_handler) mutable
+	return asio::async_initiate<token_t,void(error_code,result_t)>([
+		operation_exec, active_client = &client, active_factory = std::move(request_factory),
+		active_options = std::move(options)
+	](auto completion_handler) mutable
 	{
 		using handler_t = decltype(completion_handler);
 		auto error_result = [operation_exec]() mutable {
 			return result_t(operation_exec);
 		};
 		using factory_t = decltype(error_result);
+
 		libgs::detail::launch_awaitable(operation_exec,
 			co_retry_open(active_client, std::move(active_factory),
-				std::move(active_options), operation_exec),
-			libgs::detail::awaitable_optional_tuple_io_handler<
-				result_t,handler_t,decltype(operation_exec),factory_t>(
-					std::move(completion_handler), operation_exec,
-					std::move(error_result)));
-	}, completion_token);
+				std::move(active_options), operation_exec
+			),
+			libgs::detail::awaitable_optional_tuple_io_handler
+			<result_t,handler_t,decltype(operation_exec),factory_t>(
+				std::move(completion_handler), operation_exec,
+				std::move(error_result)
+			)
+		);
+	},
+	completion_token);
 }
 
 } //namespace detail

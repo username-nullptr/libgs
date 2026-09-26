@@ -2,36 +2,168 @@
 // SPDX-License-Identifier: MIT
 
 #ifdef _WIN32
-# define SPDLOG_WCHAR_FILENAMES
+
+# ifndef SPDLOG_WCHAR_FILENAMES
+#  define SPDLOG_WCHAR_FILENAMES
+# endif //SPDLOG_WCHAR_FILENAMES
+
 # define PCHAR(s)  LIBGS_WCHAR(s)
 # define ptostr    wstring
-#else
+
+#else //_WIN32
+
 # define PCHAR(s)  s
 # define ptostr    string
+
 #endif //_WIN32
 
 #include "logger.h"
-#include <spdlog/sinks/rotating_file_sink.h>
-#include <spdlog/sinks/daily_file_sink.h>
+#include <spdlog/pattern_formatter.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/async.h>
 
-#include <libgs/core/shared_mutex.h>
-#include <libgs/core/system/app_utls.h>
-#include <iostream>
-#include <ctime>
+#include <spdlog/sinks/rotating_file_sink.h>
+#include <spdlog/sinks/daily_file_sink.h>
+#include <spdlog/sinks/sink.h>
 
-namespace libgs::utils
+#include <libgs/core/system/app_utls.h>
+#include <libgs/core/shared_mutex.h>
+#include <iostream>
+
+namespace libgs::utils { namespace
 {
 
 using self_level_t = logger::level_t;
 using spd_level_t = spdlog::level::level_enum;
 
-static constexpr auto
+constexpr auto
 	g_daily_log    = ".daily_log"   ,
 	g_warning_log  = ".warning_log" ,
 	g_error_log    = ".error_log"   ,
 	g_critical_log = ".critical_log";
+
+using flush_ticket_t = uint64_t;
+
+// spdlog before 1.14 posts async flush requests without waiting for their
+// completion. Use a private single-worker queue and an in-band marker so
+// logger::flush() keeps its synchronous contract on every supported version.
+constexpr std::string_view g_flush_barrier_name =
+	"\x1flibgs.logger.flush-barrier\x1f";
+
+[[nodiscard]] bool equal_string_view(
+	spdlog::string_view_t lhs, std::string_view rhs) noexcept
+{
+	return lhs.size() == rhs.size() and
+		std::memcmp(lhs.data(), rhs.data(), rhs.size()) == 0;
+}
+
+[[nodiscard]] std::shared_ptr<spdlog::details::thread_pool> file_logger_thread_pool()
+{
+	// Logger instances intentionally have process lifetime. Keep their shared
+	// worker pool under the same policy: destroying a function-static pool while
+	// gs.utils is being detached makes MinGW join its worker under the Windows
+	// loader lock and deadlocks process shutdown. The indirection also leaves a
+	// stable pool for every logger without creating one worker per logger.
+	static const auto *pool = new std::shared_ptr (
+		std::make_shared<spdlog::details::thread_pool>(8192, 1)
+	);
+	return *pool;
+}
+
+class LIBGS_DECL_HIDDEN flush_barrier
+{
+public:
+	virtual ~flush_barrier() = default;
+	[[nodiscard]] virtual flush_ticket_t next_ticket() = 0;
+	virtual void wait(flush_ticket_t ticket) = 0;
+};
+
+template <typename Sink>
+class LIBGS_DECL_HIDDEN synchronous_flush_sink final :
+	public spdlog::sinks::sink, public flush_barrier
+{
+public:
+	template <typename...Args>
+	explicit synchronous_flush_sink(Args&&...args) :
+		m_sink(std::make_shared<Sink>(std::forward<Args>(args)...)) {}
+
+	void log(const spdlog::details::log_msg &msg) override
+	{
+		flush_ticket_t ticket = 0;
+		if( not is_flush_barrier(msg, ticket) )
+		{
+			m_sink->log(msg);
+			return;
+		}
+		std::exception_ptr error;
+		try {
+			m_sink->flush();
+		}
+		catch(...) {
+			error = std::current_exception();
+		}
+		{
+			std::lock_guard locker(m_mutex);
+			m_completed.emplace(ticket);
+		}
+		m_condition.notify_all();
+
+		if( error )
+			std::rethrow_exception(error);
+	}
+
+	void flush() override {
+		m_sink->flush();
+	}
+
+	void set_pattern(const std::string &pattern) override {
+		m_sink->set_pattern(pattern);
+	}
+
+	void set_formatter(std::unique_ptr<spdlog::formatter> formatter) override {
+		m_sink->set_formatter(std::move(formatter));
+	}
+
+	[[nodiscard]] flush_ticket_t next_ticket() override
+	{
+		std::lock_guard locker(m_mutex);
+		return ++m_next_ticket;
+	}
+
+	void wait(flush_ticket_t ticket) override
+	{
+		std::unique_lock locker(m_mutex);
+		m_condition.wait(locker, [this, ticket] {
+			return m_completed.contains(ticket);
+		});
+		m_completed.erase(ticket);
+	}
+
+private:
+	[[nodiscard]] static bool is_flush_barrier
+	(const spdlog::details::log_msg &msg, flush_ticket_t &ticket) noexcept
+	{
+		if( not equal_string_view(msg.logger_name, g_flush_barrier_name) )
+			return false;
+
+		auto begin = msg.payload.data();
+		auto end = begin + msg.payload.size();
+
+		auto result = std::from_chars(begin, end, ticket);
+		return result.ec == std::errc() and result.ptr == end;
+	}
+
+private:
+	std::shared_ptr<sink> m_sink;
+	std::mutex m_mutex;
+
+	std::condition_variable m_condition;
+	std::unordered_set<flush_ticket_t> m_completed;
+
+	flush_ticket_t m_next_ticket = 0;
+};
+
+} //namespace
 
 class LIBGS_DECL_HIDDEN logger::impl
 {
@@ -75,10 +207,26 @@ public:
 	void flush()
 	{
 		m_terminal_logger->flush();
-		for(auto &logger : m_file_loggers)
+		for(size_t index = 0; index < 4; ++index)
 		{
-			if( logger )
-				logger->flush();
+			auto &logger = m_file_loggers[index];
+			if( not logger )
+				continue;
+
+			auto ticket = m_flush_barriers[index]->next_ticket();
+			auto payload = std::to_string(ticket);
+
+			spdlog::details::log_msg marker (
+				spdlog::string_view_t(g_flush_barrier_name.data(), g_flush_barrier_name.size()),
+				spd_level_t::trace,
+				spdlog::string_view_t(payload.data(), payload.size())
+			);
+			auto async_logger = std::static_pointer_cast<spdlog::async_logger>(logger);
+
+			file_logger_thread_pool()->post_log (
+				std::move(async_logger), marker, spdlog::async_overflow_policy::block
+			);
+			m_flush_barriers[index]->wait(ticket);
 		}
 	}
 
@@ -97,22 +245,24 @@ public:
 				spdlog::drop(logger->name());
 				logger = {};
 			}
+			for(auto &barrier : m_flush_barriers)
+				barrier = {};
 			if( not conf.path.empty() )
 			{
 				auto path = app::absolute_path(conf.path).or_else()->ptostr() + PCHAR("/");
 
-				m_file_loggers[0] = spdlog::daily_logger_mt<spdlog::async_factory>(
-					m_name + g_daily_log, path + PCHAR("daily/daily.log")
+				create_file_logger<spdlog::sinks::daily_file_sink_mt>(0,
+					m_name + g_daily_log, path + PCHAR("daily/daily.log"), 0, 0
 				);
-				m_file_loggers[1] = spdlog::rotating_logger_mt<spdlog::async_factory>(
+				create_file_logger<spdlog::sinks::rotating_file_sink_mt>(1,
 					m_name + g_warning_log, path + PCHAR("warning.log"),
 					conf.max_file_size.warning, conf.max_file_count.warning
 				);
-				m_file_loggers[2] = spdlog::rotating_logger_mt<spdlog::async_factory>(
+				create_file_logger<spdlog::sinks::rotating_file_sink_mt>(2,
 					m_name + g_error_log, path + PCHAR("error.log"),
 					conf.max_file_size.error, conf.max_file_count.error
 				);
-				m_file_loggers[3] = spdlog::rotating_logger_mt<spdlog::async_factory>(
+				create_file_logger<spdlog::sinks::rotating_file_sink_mt>(3,
 					m_name + g_critical_log, path + PCHAR("critical.log"),
 					conf.max_file_size.critical, conf.max_file_count.critical
 				);
@@ -162,6 +312,22 @@ public:
 	}
 
 private:
+	template <typename Sink, typename...Args>
+	void create_file_logger(size_t index, std::string name, Args&&...args)
+	{
+		auto sink = std::make_shared<synchronous_flush_sink<Sink>>(
+			std::forward<Args>(args)...
+		);
+		auto object = std::make_shared<spdlog::async_logger>(
+			std::move(name), sink, file_logger_thread_pool(),
+			spdlog::async_overflow_policy::block
+		);
+		spdlog::initialize_logger(object);
+
+		m_file_loggers[index] = std::move(object);
+		m_flush_barriers[index] = std::move(sink);
+	}
+
 	class LIBGS_DECL_HIDDEN dy_tz_flag_formatter : public spdlog::custom_flag_formatter
 	{
 	public:
@@ -242,6 +408,8 @@ private:
 public:
 	logger_ptr m_terminal_logger {};
 	logger_ptr m_file_loggers[4] {};
+
+	std::shared_ptr<flush_barrier> m_flush_barriers[4] {};
 	std::string m_name {};
 	config_t m_config {};
 };
@@ -270,13 +438,14 @@ struct LIBGS_DECL_HIDDEN no_deleter {
 	void operator()(logger*) const {}
 };
 
-} //namespace
-
 using logger_ptr = std::unique_ptr<logger, no_deleter>;
 
-static std::map<std::string, logger_ptr, std::less<>> g_instances;
+std::map<std::string, logger_ptr, std::less<>> g_instances;
+
 // Logger creation clones and configures spdlog sinks; names() also allocates.
-static shared_mutex g_instances_lock;
+shared_mutex g_instances_lock;
+
+} //namespace
 
 std::vector<std::string> logger::names() noexcept
 {

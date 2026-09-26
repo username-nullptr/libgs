@@ -64,7 +64,7 @@ template <typename ConnectionPtr>
 (const ConnectionPtr &connection, optional<bool> no_delay) noexcept
 {
 	if( not connection )
-		return make_error_code(std::errc::not_connected);
+		return make_system_error_code(std::errc::not_connected);
 
 	if( not no_delay )
 		return {};
@@ -295,14 +295,19 @@ co_open(http::basic_client<Exec,Version> *client, connect_request active_request
 				};
 			}
 			auto opening = std::move(prepared->opening);
-			typename http::basic_client<Exec,Version>::req_info info(
-				std::move(prepared->transport), std::move(prepared->options));
+			using req_info_t = http::basic_client<Exec,Version>::req_info;
+
+			req_info_t info (
+				std::move(prepared->transport), std::move(prepared->options)
+			);
 			info.proxy = std::move(prepared->proxy);
 			info.auto_decompression = false;
 			info.max_redirects = 0;
-			auto [request_error, next_context] =
-				co_await http::detail::client_access::request<http::method::get>(
-					*client, std::move(info));
+
+			auto request_result = co_await http::detail::client_access::request
+				<http::method::get>(*client, std::move(info));
+
+			auto &[request_error, next_context] = request_result;
 			if( request_error )
 			{
 				co_return std::tuple<error_code,result_t> {
@@ -321,8 +326,9 @@ co_open(http::basic_client<Exec,Version> *client, connect_request active_request
 					asio::error::timed_out, std::move(result)
 				};
 			}
-			auto [reply_error, status] =
-				co_await http::detail::reply_access::wait(*context->reply());
+			auto reply_result = co_await http::detail::reply_access::wait(*context->reply());
+			auto &[reply_error, status] = reply_result;
+
 			if( reply_error )
 			{
 				context->cancel();
@@ -538,7 +544,7 @@ private:
 			config.stream.ping_interval < std::chrono::milliseconds::zero() )
 		{
 			system_error::loc_throw (
-				make_error_code(std::errc::invalid_argument),
+				make_system_error_code(std::errc::invalid_argument),
 				"libgs::websocket::basic_client"
 			);
 		}
@@ -749,8 +755,10 @@ auto basic_client<Exec>::open(connect_request_t request, Token &&token)
 	requires open_token_v<Token>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->open_sync(std::move(request), nullptr, token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->open_sync(std::move(request), nullptr, adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
@@ -776,8 +784,10 @@ auto basic_client<Exec>::open(connect_request_t request, diagnostics_t &diagnost
 	diagnostics.reply.reset();
 
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->open_sync(std::move(request), &diagnostics, token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->open_sync(std::move(request), &diagnostics, adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
@@ -866,9 +876,11 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 	if constexpr( is_error_code_token_v<Token> )
 	{
 		basic_stream<Exec> result(http_client.get_executor(), stream_options);
+		auto adapted_error = adapt_error_code(token);
+
 		detail::open_sync(http_client, std::move(request),
 			static_cast<basic_open_diagnostics<Exec>*>(nullptr),
-			stream_options, nullopt, timeout, result, token
+			stream_options, nullopt, timeout, result, adapted_error.get()
 		);
 		return result;
 	}
@@ -916,8 +928,10 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 	if constexpr( is_error_code_token_v<Token> )
 	{
 		basic_stream<Exec> result(http_client.get_executor(), stream_options);
+		auto adapted_error = adapt_error_code(token);
+
 		detail::open_sync(http_client, std::move(request), &diagnostics,
-			stream_options, nullopt, timeout, result, token
+			stream_options, nullopt, timeout, result, adapted_error.get()
 		);
 		return result;
 	}

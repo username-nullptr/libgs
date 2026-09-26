@@ -5,6 +5,7 @@
 
 #include <libgs/core/lock_free_queue.h>
 #include <libgs/core/shared_mutex.h>
+#include <libgs/core/jthread.h>
 
 #include <libgs/utils/signal_slot.h>
 #include <libgs/utils/logger.h>
@@ -122,11 +123,11 @@ protected:
 
 	void start(std::function<void()> task_arg)
 	{
-		m_run.store(true, std::memory_order_release);
-		m_thread = std::thread([this, task = std::move(task_arg)]() mutable noexcept
+		m_thread = jthread([this, task = std::move(task_arg)]
+		(const stop_token &token) mutable noexcept
 		{
 			try {
-				do_task(task);
+				do_task(task, token);
 			}
 			catch(const std::exception &ex) {
 				uncaught_exception(ex);
@@ -143,10 +144,12 @@ protected:
 
 	void stop() noexcept
 	{
-		m_run.store(false, std::memory_order_release);
+		if( not m_thread.joinable() )
+			return ;
+
+		m_thread.request_stop();
 		notify();
-		if( m_thread.joinable() )
-			m_thread.join();
+		m_thread.join();
 	}
 
 public:
@@ -155,10 +158,10 @@ public:
 	}
 
 private:
-	void do_task(const std::function<void()> &task)
+	void do_task(const std::function<void()> &task, const libgs::stop_token &token)
 	{
 		uint64_t observed_epoch = 0;
-		while( m_run.load(std::memory_order_acquire) )
+		while( not token.stop_requested() )
 		{
 			while( m_epoch.load(std::memory_order_acquire) == observed_epoch )
 			{
@@ -166,24 +169,21 @@ private:
 					&m_epoch, observed_epoch, std::memory_order_acquire
 				);
 			}
-			if( not m_run.load(std::memory_order_acquire) )
+			if( token.stop_requested() )
 				break;
 			do {
 				observed_epoch = m_epoch.load(std::memory_order_acquire);
 				task();
 			}
-			while( m_epoch.load(std::memory_order_acquire) != observed_epoch and
-				m_run.load(std::memory_order_acquire) );
+			while (
+				m_epoch.load(std::memory_order_acquire) != observed_epoch and
+				not token.stop_requested()
+			);
 		}
 	}
 
 	alignas(64) std::atomic_uint64_t m_epoch {0};
-	alignas(64) std::atomic_bool m_run {false};
-	/*
-	 * The support for std::jthread by clang requires at least version 20.
-	 * So, it is still advisable to use the traditional std::thread.
-	 */
-	std::thread m_thread {};
+	jthread m_thread {};
 };
 #ifdef _MSC_VER
 # pragma warning(pop)

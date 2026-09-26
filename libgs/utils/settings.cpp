@@ -105,7 +105,7 @@ error_code settings::impl::claim_file(const settings *owner, const path_t &file_
 
 		if( auto [it, inserted] = g_file_paths.emplace(file_name, owner);
 			not inserted and it->second != owner )
-			return make_error_code(std::errc::device_or_resource_busy);
+			return make_system_error_code(std::errc::device_or_resource_busy);
 	}
 	catch(...) {
 		return exception_error(std::current_exception());

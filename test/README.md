@@ -8,8 +8,31 @@ Tests are grouped by purpose. CTest entries carry the corresponding suite label.
 | Stress | Correctness under concurrency, saturation, and repeated lifecycle work | `LIBGS_BUILD_STRESS_TESTS=ON` |
 | Fuzz | Input and call-sequence exploration with libFuzzer/ASan/UBSan | `LIBGS_BUILD_FUZZERS=ON` |
 | Performance | Throughput and latency measurements without fixed thresholds | `LIBGS_BUILD_PERFORMANCE_TESTS=ON` |
+| CMake | Module/option constraints and installed-package consumption | `LIBGS_BUILD_CMAKE_TESTS=ON` |
 
 Only enabled library modules contribute tests.
+
+## CMake integration tests
+
+`LIBGS_BUILD_CMAKE_TESTS` follows `BUILD_TESTING` by default.  The configure
+suite enumerates every Core/Coroutine/HTTP/WebSocket/Utilities module
+combination, checks that invalid dependency combinations are rejected for the
+documented reason, and verifies the generated package component state.  It also
+checks the constraints between sanitizer, fuzz, stress, performance, provider,
+and numeric test options.  Package probes verify that component selection
+restores only its transitive external dependencies and reports unavailable
+components before attempting unrelated dependency discovery.
+
+The install-consumer test installs the current build into an isolated prefix.
+An independent downstream project then uses `find_package(LibGS COMPONENTS
+...)`, builds against every installed `LibGS::` target and the legacy `gs.`
+targets, and runs the resulting executables.  Run these tests after building:
+
+```sh
+cmake -S . -B build-cmake-test -DBUILD_TESTING=ON
+cmake --build build-cmake-test --parallel
+ctest --test-dir build-cmake-test -L cmake --output-on-failure
+```
 
 ## Functional tests
 
@@ -50,10 +73,11 @@ cmake --build build-stress --parallel
 ctest --test-dir build-stress -L stress --output-on-failure
 ```
 
-CTest names are `libgs.stress.<module>`. The suite covers Core queues and
-locks, coroutine synchronization, repeated HTTP/WebSocket connections, utility
-lifecycle/fanout, and optional UDP soft-bus pressure. Entries run serially at
-the CTest level; concurrency occurs inside each executable.
+CTest names are `libgs.stress.<module>`. The suite covers Core queues, locks,
+the fallback joining-thread/stop-state implementation, coroutine
+synchronization, repeated HTTP/WebSocket connections, utility lifecycle/fanout,
+and optional UDP soft-bus pressure. Entries run serially at the CTest level;
+concurrency occurs inside each executable.
 
 ## Fuzz tests
 
@@ -154,8 +178,8 @@ Suite cache controls:
 
 | Suite | Variables (defaults) |
 | --- | --- |
-| Functional | `LIBGS_FUNCTIONAL_REPEAT=1`, `LIBGS_FUNCTIONAL_SEED=1`, `LIBGS_FUNCTIONAL_TIMEOUT=60` |
-| Stress | `LIBGS_STRESS_SCALE=4`, `LIBGS_STRESS_REPEAT=1`, `LIBGS_STRESS_SEED=1`, `LIBGS_STRESS_TIMEOUT=180` |
+| Functional | `LIBGS_FUNCTIONAL_REPEAT=3`, `LIBGS_FUNCTIONAL_SEED=1`, `LIBGS_FUNCTIONAL_TIMEOUT=120` |
+| Stress | `LIBGS_STRESS_SCALE=5`, `LIBGS_STRESS_REPEAT=3`, `LIBGS_STRESS_SEED=1`, `LIBGS_STRESS_TIMEOUT=180` |
 | Fuzz | `LIBGS_FUZZ_SMOKE_RUNS=2048`, `LIBGS_FUZZ_SEED=1`, `LIBGS_FUZZ_MAX_LENGTH=4096`, `LIBGS_FUZZ_TIMEOUT=5`, `LIBGS_FUZZ_RSS_LIMIT_MB=1024` |
 | Performance | `LIBGS_PERFORMANCE_SCALE=1`, `LIBGS_PERFORMANCE_TIMEOUT=60` |
 

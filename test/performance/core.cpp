@@ -138,9 +138,9 @@ void algorithm_size_scaling()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"core hot paths", core_hot_paths},
 		{"algorithm size scaling", algorithm_size_scaling},
 	});

@@ -8,27 +8,167 @@
 #include <libgs/core/cxx/type_traits.h>
 #include <libgs/core/cxx/attributes.h>
 
-#ifdef LIBGS_USING_BOOST_ASIO
+#if LIBGS_USING_BOOST_ASIO
 # include <boost/asio/experimental/awaitable_operators.hpp>
-# include <boost/asio/spawn.hpp>
-#else
+#else //LIBGS_USING_BOOST_ASIO
 # include <asio/experimental/awaitable_operators.hpp>
 #endif //LIBGS_USING_BOOST_ASIO
 
-namespace libgs
+namespace libgs { namespace detail
 {
 
+template <typename CompletionToken>
+class LIBGS_CORE_TAPI std_error_token_t
+{
+public:
+	using token_type = CompletionToken;
+	constexpr std_error_token_t() = default;
+
+	constexpr explicit std_error_token_t(CompletionToken token) :
+		token(std::move(token)) {}
+
+	template <typename OtherAllocator>
+	[[nodiscard]] constexpr auto rebind(const OtherAllocator &allocator) const
+		requires requires(const CompletionToken &value) { value.rebind(allocator); }
+	{
+		return std_error_token_t<decltype(token.rebind(allocator))>(
+			token.rebind(allocator)
+		);
+	}
+
+	[[nodiscard]] constexpr auto get_allocator() const
+		requires requires(const CompletionToken &value) { value.get_allocator(); } {
+		return token.get_allocator();
+	}
+
+	template <typename InnerExecutor>
+	struct executor_with_default : InnerExecutor
+	{
+		using default_completion_token_type = std_error_token_t;
+
+		template <typename OtherExecutor>
+		explicit executor_with_default(const OtherExecutor &executor) noexcept
+			requires (
+				not std::same_as<OtherExecutor,executor_with_default> and
+				std::convertible_to<OtherExecutor,InnerExecutor>
+			) : InnerExecutor(executor) {}
+	};
+
+	template <typename Object>
+	using as_default_on_t = Object::template rebind_executor <
+		executor_with_default<typename Object::executor_type>
+	>::other;
+
+	template <typename Object>
+	[[nodiscard]] static as_default_on_t<std::decay_t<Object>>
+	as_default_on(Object &&object)
+	{
+		return as_default_on_t<std::decay_t<Object>>(
+			std::forward<Object>(object)
+		);
+	}
+	CompletionToken token {};
+};
+
+template <typename Allocator>
+class LIBGS_CORE_TAPI std_error_token_t<asio::use_future_t<Allocator>>
+{
+public:
+	using token_type = asio::use_future_t<Allocator>;
+	using allocator_type = Allocator;
+
+	constexpr std_error_token_t() = default;
+	constexpr explicit std_error_token_t(token_type token) :
+		token(std::move(token)) {}
+
+	template <typename OtherAllocator>
+	[[nodiscard]] auto operator[](const OtherAllocator &allocator) const {
+		return rebind(allocator);
+	}
+
+	template <typename OtherAllocator>
+	[[nodiscard]] auto rebind(const OtherAllocator &allocator) const
+	{
+		return std_error_token_t<asio::use_future_t<OtherAllocator>>(
+			token.rebind(allocator));
+	}
+
+	[[nodiscard]] allocator_type get_allocator() const {
+		return token.get_allocator();
+	}
+
+	template <typename Function>
+	[[nodiscard]] auto operator()(Function &&function) const {
+		return token(std::forward<Function>(function));
+	}
+	token_type token {};
+};
+
+template <typename Handler>
+class std_error_handler
+{
+public:
+	explicit std_error_handler(Handler handler) :
+		handler(std::move(handler)) {}
+
+	void operator()() {
+		std::move(handler)();
+	}
+
+	template <typename First, typename...Rest>
+	void operator()(First &&first, Rest&&...rest)
+	{
+		using first_t = std::remove_cvref_t<First>;
+		if constexpr( std::same_as<first_t,error_code> or std::same_as<first_t,std::error_code> )
+		{
+			std::exception_ptr exception;
+			if( first )
+			{
+				exception = std::make_exception_ptr (
+					std::system_error(std::error_code(first))
+				);
+			}
+			std::move(handler)(std::move(exception),
+				std::forward<Rest>(rest)...
+			);
+		}
+		else
+		{
+			std::move(handler)(std::forward<First>(first),
+				std::forward<Rest>(rest)...
+			);
+		}
+	}
+	Handler handler;
+};
+
+template <typename Signature>
+struct std_error_signature {
+	using type = Signature;
+};
+
+template <typename Return, typename...Args>
+struct std_error_signature<Return(error_code,Args...)> {
+	using type = Return(std::exception_ptr,Args...);
+};
+
+} //namespace detail
+
 template <concepts::exec Exec = asio::any_io_executor>
-using use_basic_awaitable_t = asio::use_awaitable_t<Exec>;
+using use_basic_awaitable_t = detail::std_error_token_t <
+	asio::use_awaitable_t<Exec>
+>;
 
 using use_awaitable_t = use_basic_awaitable_t<asio::any_io_executor>;
-constexpr auto use_awaitable = asio::use_awaitable;
+constexpr use_awaitable_t use_awaitable(asio::use_awaitable);
 
 template <typename Allocator = std::allocator<void>>
-using use_basic_future_t = asio::use_future_t<Allocator>;
+using use_basic_future_t = detail::std_error_token_t <
+	asio::use_future_t<Allocator>
+>;
 
 using use_future_t = use_basic_future_t<std::allocator<void>>;
-constexpr auto use_future = asio::use_future;
+constexpr use_future_t use_future(asio::use_future);
 
 using detached_t = asio::detached_t;
 constexpr auto detached = asio::detached;
@@ -72,6 +212,84 @@ template <typename Token, typename Clock, typename Duration>
 );
 
 } //namespace libgs
+
+#if LIBGS_USING_BOOST_ASIO
+namespace boost::asio
+#else //LIBGS_USING_BOOST_ASIO
+namespace asio
+#endif //LIBGS_USING_BOOST_ASIO
+{
+
+template <typename CompletionToken, typename...Signatures>
+class async_result<libgs::detail::std_error_token_t<CompletionToken>, Signatures...> :
+	public async_result<CompletionToken,
+		typename libgs::detail::std_error_signature<Signatures>::type...
+	>
+{
+	template <typename Initiation>
+	class init_wrapper
+	{
+	public:
+		explicit init_wrapper(Initiation initiation) :
+			m_initiation(std::move(initiation)) {}
+
+		template <typename Handler, typename...Args>
+		void operator()(Handler &&handler, Args&&...args)
+		{
+			if constexpr( (std::same_as<Signatures,
+				typename libgs::detail::std_error_signature<Signatures>::type> and ...) )
+			{
+				std::move(m_initiation)(std::forward<Handler>(handler),
+					std::forward<Args>(args)...
+				);
+			}
+			else
+			{
+				std::move(m_initiation) (
+					libgs::detail::std_error_handler
+						<std::decay_t<Handler>>(std::forward<Handler>(handler)),
+					std::forward<Args>(args)...
+				);
+			}
+		}
+
+	private:
+		Initiation m_initiation;
+	};
+
+public:
+	template <typename Initiation, typename RawCompletionToken, typename...Args>
+	static auto initiate(Initiation &&initiation, RawCompletionToken &&token, Args&&...args)
+	{
+		using token_t = std::conditional_t <
+			std::is_const_v<std::remove_reference_t<RawCompletionToken>>,
+			const CompletionToken, CompletionToken
+		>;
+		return async_initiate
+		<token_t, typename libgs::detail::std_error_signature<Signatures>::type...>(
+			init_wrapper<std::decay_t<Initiation>>(std::forward<Initiation>(initiation)),
+			token.token, std::forward<Args>(args)...
+		);
+	}
+};
+
+template <template <typename,typename> class Associator, typename Handler, typename DefaultCandidate>
+struct associator<Associator, libgs::detail::std_error_handler<Handler>, DefaultCandidate> :
+	Associator<Handler,DefaultCandidate>
+{
+	using base_t = Associator<Handler,DefaultCandidate>;
+	using type = base_t::type;
+
+	static type get(const libgs::detail::std_error_handler<Handler> &handler) noexcept {
+		return base_t::get(handler.handler);
+	}
+	static type get
+	(const libgs::detail::std_error_handler<Handler> &handler, const DefaultCandidate &candidate) noexcept {
+		return base_t::get(handler.handler, candidate);
+	}
+};
+
+} //namespace boost::asio or asio
 #include <libgs/core/utils/detail/opt_token.h>
 
 

@@ -81,7 +81,7 @@ public:
 		if( not has_connection() )
 		{
 			return sys_unexpected(
-				make_error_code(std::errc::not_connected)
+				make_system_error_code(std::errc::not_connected)
 			);
 		}
 		auto &conn = connection();
@@ -89,11 +89,11 @@ public:
 		{
 			close_connection();
 			return sys_unexpected (
-				make_error_code(std::errc::not_connected)
+				make_system_error_code(std::errc::not_connected)
 			);
 		}
 		using namespace libgs::operators;
-		std::error_code error;
+		error_code error;
 
 		constexpr size_t buf_size = 0xFFFF;
 		char buf[buf_size];
@@ -163,7 +163,7 @@ public:
 		if( not self->has_connection() )
 		{
 			co_return std::tuple {
-				make_error_code(std::errc::not_connected), status_enum{}
+				make_system_error_code(std::errc::not_connected), status_enum{}
 			};
 		}
 		auto &conn = self->connection();
@@ -171,7 +171,7 @@ public:
 		{
 			self->close_connection();
 			co_return std::tuple {
-				make_error_code(std::errc::not_connected), status_enum{}
+				make_system_error_code(std::errc::not_connected), status_enum{}
 			};
 		}
 		constexpr size_t buf_size = 0xFFFF;
@@ -252,7 +252,7 @@ public:
 		if( not has_connection() )
 		{
 			return io_unexpected (
-				make_error_code(std::errc::not_connected)
+				make_system_error_code(std::errc::not_connected)
 			);
 		}
 		auto &conn = connection();
@@ -260,7 +260,7 @@ public:
 		{
 			close_connection();
 			return io_unexpected (
-				make_error_code(std::errc::not_connected)
+				make_system_error_code(std::errc::not_connected)
 			);
 		}
 		size_t sum = 0;
@@ -298,7 +298,7 @@ public:
 				if( not m_parser.commit_direct_body_read(bytes) )
 				{
 					close_connection();
-					return io_unexpected(make_error_code(std::errc::protocol_error));
+					return io_unexpected(make_system_error_code(std::errc::protocol_error));
 				}
 				sum += bytes;
 				continue;
@@ -374,7 +374,7 @@ public:
 		if( not self->has_connection() )
 		{
 			co_return std::tuple {
-				make_error_code(std::errc::not_connected), sum
+				make_system_error_code(std::errc::not_connected), sum
 			};
 		}
 		auto &conn = self->connection();
@@ -382,7 +382,7 @@ public:
 		{
 			self->close_connection();
 			co_return std::tuple {
-				make_error_code(std::errc::not_connected), sum
+				make_system_error_code(std::errc::not_connected), sum
 			};
 		}
 		if( buf.size() == 0 )
@@ -424,7 +424,7 @@ public:
 				{
 					self->close_connection();
 					co_return std::tuple<error_code,size_t> {
-						make_error_code(std::errc::protocol_error), 0
+						make_system_error_code(std::errc::protocol_error), 0
 					};
 				}
 				sum += bytes;
@@ -508,7 +508,7 @@ public:
 			if( not conn.is_open() )
 			{
 				close_connection();
-				return sys_unexpected(make_error_code(std::errc::not_connected));
+				return sys_unexpected(make_system_error_code(std::errc::not_connected));
 			}
 			char buf[128 * 1024] {};
 			error_code error {};
@@ -537,7 +537,7 @@ public:
 			finish_connection();
 			return sys_unexpected(make_error_code(errc::eof));
 		}
-		return sys_unexpected(make_error_code(std::errc::not_connected));
+		return sys_unexpected(make_system_error_code(std::errc::not_connected));
 	}
 
 	using range_value_t = byte_range_chunk;
@@ -577,7 +577,7 @@ public:
 			if( not self->has_connection() )
 			{
 				co_return std::tuple<error_code,range_value_t> {
-					make_error_code(std::errc::not_connected), {}
+					make_system_error_code(std::errc::not_connected), {}
 				};
 			}
 			auto &conn = self->connection();
@@ -585,7 +585,7 @@ public:
 			{
 				self->close_connection();
 				co_return std::tuple<error_code,range_value_t> {
-					make_error_code(std::errc::not_connected), {}
+					make_system_error_code(std::errc::not_connected), {}
 				};
 			}
 			char buf[128 * 1024] {};
@@ -732,7 +732,9 @@ public:
 		}
 		else
 		{
-			auto [error, source] = co_await co_read_all(self);
+			auto read_result = co_await co_read_all(self);
+			auto &[error, source] = read_result;
+
 			if( error )
 				co_return std::tuple<error_code,Buffer>{error, {}};
 
@@ -908,7 +910,7 @@ public:
 		{
 			self->close_connection();
 			co_return std::tuple<error_code,size_t>{
-				make_error_code(std::errc::result_out_of_range), 0
+				make_system_error_code(std::errc::result_out_of_range), 0
 			};
 		}
 		auto file_token = self->make_file_opt_token (
@@ -954,7 +956,7 @@ public:
 				self->close_connection();
 
 				co_return std::tuple<error_code,size_t> {
-					make_error_code(std::errc::io_error), 0
+					make_system_error_code(std::errc::io_error), 0
 				};
 			}
 			sum += chunk.data.size();
@@ -1020,7 +1022,7 @@ private:
 			(direct_remaining != 0 and direct_remaining > sum.max_size() - offset) )
 		{
 			return sys_unexpected (
-				make_error_code(std::errc::value_too_large)
+				make_system_error_code(std::errc::value_too_large)
 			);
 		}
 		try {
@@ -1033,13 +1035,13 @@ private:
 		catch(const std::length_error&)
 		{
 			return sys_unexpected (
-				make_error_code(std::errc::value_too_large)
+				make_system_error_code(std::errc::value_too_large)
 			);
 		}
 		catch(const std::bad_alloc&)
 		{
 			return sys_unexpected (
-				make_error_code(std::errc::not_enough_memory)
+				make_system_error_code(std::errc::not_enough_memory)
 			);
 		}
 		return read_size;

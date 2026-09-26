@@ -1,22 +1,5 @@
-**/build
-**/*_build
-**/*-build
-**/*.build
-**/build_*
-**/build-*
-**/build.*
-**/*_build_*
-**/*_build-*
-**/*_build.*
-**/*-build_*
-**/*-build-*
-**/*-build.*
-**/*.build-*
-**/*.build_*
-**/*.build.*
-**/*install
-**/install*
-**/*install*
+**/*build*/
+**/*install*/
 **/*txt.user*
 **/release*
 **/Release*
@@ -69,7 +52,3 @@ Thumbs.db
 /CTestTestfile.cmake
 /DartConfiguration.tcl
 CMakeSettings.json
-
-# Documentation sources, not generated build artifacts.
-!doc/en/build.md
-!doc/zh_CN/build.md

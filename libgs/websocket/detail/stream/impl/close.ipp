@@ -84,10 +84,10 @@ sys_expected<> basic_stream<Exec>::impl::remember_peer_close
 		return make_sys_expected();
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 }
 
 template <core_concepts::exec Exec>
@@ -110,7 +110,7 @@ sys_expected<> basic_stream<Exec>::impl::begin_peer_close(const std::vector<std:
 	if( m_config.close_timeout <= std::chrono::milliseconds::zero() )
 	{
 		m_send_engine.clear_auto_pong();
-		m_send_engine.fail_queued_writes(make_error_code(std::errc::broken_pipe));
+		m_send_engine.fail_queued_writes(make_system_error_code(std::errc::broken_pipe));
 		return make_sys_expected();
 	}
 	if( local_close_sent() )
@@ -125,7 +125,7 @@ sys_expected<> basic_stream<Exec>::impl::begin_peer_close(const std::vector<std:
 			return retained;
 	}
 	m_send_engine.clear_auto_pong();
-	m_send_engine.fail_queued_writes(make_error_code(std::errc::broken_pipe));
+	m_send_engine.fail_queued_writes(make_system_error_code(std::errc::broken_pipe));
 
 	if( m_state == connection_state::closing )
 		m_send_engine.schedule();
@@ -150,7 +150,8 @@ sys_expected<> basic_stream<Exec>::impl::handle_sync_peer_close
 			return retained;
 
 		m_send_engine.clear_auto_pong();
-		m_send_engine.fail_queued_writes(make_error_code(std::errc::broken_pipe));
+		m_send_engine.fail_queued_writes(make_system_error_code(std::errc::broken_pipe));
+
 		m_send_engine.schedule();
 		return make_sys_expected();
 	}
@@ -273,7 +274,7 @@ void basic_stream<Exec>::impl::finish_close(error_code error, bool clean, bool c
 
 	stop_automatic_ping();
 	m_send_engine.fail_queued_writes (
-		 error ? error : make_error_code(std::errc::broken_pipe)
+		 error ? error : make_system_error_code(std::errc::broken_pipe)
 	);
 	complete_close_waiters(error);
 }
@@ -340,7 +341,7 @@ auto basic_stream<Exec>::impl::close
 
 	if( m_state == connection_state::failed )
 	{
-		error = m_error ? m_error : make_error_code(std::errc::io_error);
+		error = m_error ? m_error : make_system_error_code(std::errc::io_error);
 		return retained_close_info();
 	}
 	if( m_state == connection_state::idle )
@@ -350,7 +351,7 @@ auto basic_stream<Exec>::impl::close
 	}
 	if( m_state == connection_state::closing or m_receive_engine.active() or m_send_engine.busy() )
 	{
-		error = make_error_code(std::errc::operation_in_progress);
+		error = make_system_error_code(std::errc::operation_in_progress);
 		return retained_close_info();
 	}
 	auto prepared = m_send_engine.prepare_close(frame);
@@ -441,13 +442,13 @@ auto basic_stream<Exec>::impl::wait_closed(error_code &error) noexcept -> close_
 	}
 	if( m_state == connection_state::failed )
 	{
-		error = m_error ? m_error : make_error_code(std::errc::io_error);
+		error = m_error ? m_error : make_system_error_code(std::errc::io_error);
 		return retained_close_info();
 	}
 	if( m_state == connection_state::idle )
 		error = make_error_code(errc::not_open);
 	else
-		error = make_error_code(std::errc::operation_would_block);
+		error = make_system_error_code(std::errc::operation_would_block);
 
 	return retained_close_info();
 }
@@ -473,7 +474,7 @@ void basic_stream<Exec>::impl::async_close(const close_frame &frame, close_handl
 	if( m_state == connection_state::failed or m_state == connection_state::idle )
 	{
 		auto error = m_state == connection_state::failed ?
-			(m_error ? m_error : make_error_code(std::errc::io_error)) :
+			(m_error ? m_error : make_system_error_code(std::errc::io_error)) :
 			make_error_code(errc::not_open);
 
 		detail::close_wait_queue::post (
@@ -516,7 +517,7 @@ void basic_stream<Exec>::impl::async_wait_closed(close_handler_t completion)
 	if( m_state == connection_state::failed or m_state == connection_state::idle )
 	{
 		auto error = m_state == connection_state::failed ?
-			(m_error ? m_error : make_error_code(std::errc::io_error)) :
+			(m_error ? m_error : make_system_error_code(std::errc::io_error)) :
 			make_error_code(errc::not_open);
 
 		detail::close_wait_queue::post (

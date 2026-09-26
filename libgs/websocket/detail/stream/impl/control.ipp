@@ -44,7 +44,7 @@ sys_expected<> basic_stream<Exec>::impl::handle_sync_control
 		m_on_async_ping : m_on_async_pong; async_callback )
 	{
 		return sys_unexpected (
-			make_error_code(std::errc::operation_not_supported)
+			make_system_error_code(std::errc::operation_not_supported)
 		);
 	}
 	try {

@@ -77,7 +77,7 @@ sys_expected<url> canonical_websocket_url(const url &endpoint) noexcept
 {
 	try {
 		if( not endpoint.is_valid() or endpoint.host().empty() or endpoint.has_fragment() )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		const auto scheme = strtls::to_lower(endpoint.protocol());
 		std::string_view canonical_scheme;
@@ -90,27 +90,27 @@ sys_expected<url> canonical_websocket_url(const url &endpoint) noexcept
 		else
 		{
 			return sys_unexpected (
-				make_error_code(std::errc::protocol_not_supported)
+				make_system_error_code(std::errc::protocol_not_supported)
 			);
 		}
 		auto text = endpoint.to_string();
 		auto separator = text.find("://");
 
 		if( separator == std::string::npos )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		text.replace(0, separator, canonical_scheme);
 		url result(text);
 
 		if( not result.is_valid() )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 		return result;
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 }
 
 error_code validate_open_request(connect_request &request, const stream_config &stream) noexcept
@@ -124,7 +124,7 @@ error_code validate_open_request(connect_request &request, const stream_config &
 		if( stream.read_buffer_size == 0 or
 			stream.ping_interval < std::chrono::milliseconds::zero() or
 			stream.compression.level < -1 or stream.compression.level > 9 )
-			return make_error_code(std::errc::invalid_argument);
+			return make_system_error_code(std::errc::invalid_argument);
 
 		if( not supported_extension_offers(request.extensions) )
 			return make_error_code(errc::unsupported_extension);
@@ -138,33 +138,33 @@ error_code validate_open_request(connect_request &request, const stream_config &
 				if( not proxy->endpoint.is_valid() or proxy->endpoint.host().empty() or
 					proxy->endpoint.has_fragment() or proxy->endpoint.has_query() or
 					(not proxy->endpoint.path().empty() and proxy->endpoint.path() != "/") )
-					return make_error_code(std::errc::invalid_argument);
+					return make_system_error_code(std::errc::invalid_argument);
 
 				if( proxy->type == proxy_type::http )
 				{
 					if( proxy_scheme != "http" and proxy_scheme != "https" )
-						return make_error_code(std::errc::protocol_not_supported);
+						return make_system_error_code(std::errc::protocol_not_supported);
 
 					if( request.endpoint.protocol() == "wss" and proxy_scheme == "https" )
-						return make_error_code(std::errc::operation_not_supported);
+						return make_system_error_code(std::errc::operation_not_supported);
 				}
 				else if( proxy->type == proxy_type::socks5 )
 				{
 					if( proxy_scheme != "socks5" and proxy_scheme != "socks5h" )
-						return make_error_code(std::errc::protocol_not_supported);
+						return make_system_error_code(std::errc::protocol_not_supported);
 
 					if( request.endpoint.host().size() > 255 or
 						(proxy->username and proxy->username->size() > 255) or
 						(proxy->password and proxy->password->size() > 255) )
-						return make_error_code(std::errc::invalid_argument);
+						return make_system_error_code(std::errc::invalid_argument);
 				}
 				else
-					return make_error_code(std::errc::invalid_argument);
+					return make_system_error_code(std::errc::invalid_argument);
 
 				if( proxy->authorization and
 					(proxy->authorization->find('\r') != std::string::npos or
 					 proxy->authorization->find('\n') != std::string::npos) )
-					return make_error_code(std::errc::invalid_argument);
+					return make_system_error_code(std::errc::invalid_argument);
 			}
 		}
 		for(const auto &[name, value] : request.request_options.headers())
@@ -176,10 +176,10 @@ error_code validate_open_request(connect_request &request, const stream_config &
 		return {};
 	}
 	catch(const std::bad_alloc&) {
-		return make_error_code(std::errc::not_enough_memory);
+		return make_system_error_code(std::errc::not_enough_memory);
 	}
 	catch(...) {}
-	return make_error_code(std::errc::io_error);
+	return make_system_error_code(std::errc::io_error);
 }
 
 sys_expected<url> http_transport_url(const url &endpoint) noexcept
@@ -189,21 +189,21 @@ sys_expected<url> http_transport_url(const url &endpoint) noexcept
 		auto separator = text.find("://");
 
 		if( separator == std::string::npos )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		const auto scheme = strtls::to_lower(endpoint.protocol());
 		text.replace(0, separator, scheme == "wss" ? "https" : "http");
 
 		url result(text);
 		if( not result.is_valid() )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 		return result;
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 }
 
 uint16_t websocket_effective_port(const url &value) noexcept
@@ -308,7 +308,7 @@ sys_expected<open_http_request> prepare_open_http_request(const connect_request 
 					});
 				}
 				return sys_unexpected (
-					make_error_code(std::errc::protocol_not_supported)
+					make_system_error_code(std::errc::protocol_not_supported)
 				);
 			}();
 			if( not resolved )
@@ -371,10 +371,10 @@ sys_expected<open_http_request> prepare_open_http_request(const connect_request 
 		return result;
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 }
 
 open_response_decision evaluate_open_response(http::status_enum status, const http::headers &headers,

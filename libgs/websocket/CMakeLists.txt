@@ -14,10 +14,20 @@ if (LIBGS_HTTP_ZLIB_SUPPORT)
 	)
 endif ()
 
+option(LIBGS_WEBSOCKET_ZLIB_SUPPORT
+	"-- ${PRO_NAME}: WebSocket permessage-deflate support." OFF
+)
 if (LIBGS_WEBSOCKET_ZLIB_SUPPORT)
 	message(STATUS "${PRO_NAME}: Enable WebSocket permessage-deflate support.")
+
+	if (LIBGS_ZLIB_INSTALL_PREFIX)
+		set(ZLIB_ROOT "${LIBGS_ZLIB_INSTALL_PREFIX}")
+	endif ()
 	find_package(ZLIB REQUIRED)
 
+	libgs_validate_msvc_imported_targets(ZLIB
+		LIBGS_ZLIB_INSTALL_PREFIX ZLIB::ZLIB
+	)
 	target_compile_definitions(${target_name}
 		PUBLIC LIBGS_WEBSOCKET_ZLIB_SUPPORT=1
 	)

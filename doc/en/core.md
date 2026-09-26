@@ -15,6 +15,7 @@ Target: `gs.core`. Core is always built and underpins every other module.
 | `<libgs/core/algorithm.h>` | UUID, SHA-1, wildcard, encoding, and math helpers |
 | `<libgs/core/lock_free_queue.h>` | Linked and circular lock-free queues |
 | `<libgs/core/atomic_mutex.h>`, `shared_mutex.h` | Atomic exclusive/shared locks |
+| `<libgs/core/jthread.h>` | Portable C++20 joining thread and stop tokens |
 | `<libgs/core/system.h>` | Application paths, environment, CPU, dynamic libraries |
 | `<libgs/core/mime_type.h>` | MIME lookup and text/binary classification |
 | `<libgs/core/cxx/...>` | Concepts, traits, formatting, expected/optional compatibility |
@@ -69,6 +70,11 @@ Use Core locks and queues for thread synchronization; use
 `atomic_mutex` and `atomic_shared_mutex` use the balanced policy by default.
 The low-latency policy spins and is suitable only for short, bounded critical
 sections on controlled threads.
+
+`libgs::jthread`, `stop_token`, `stop_source`, and `stop_callback` map directly
+to their standard-library counterparts when they are available. Otherwise,
+Core supplies the same cooperative-stop and automatic-join interface on top of
+`std::thread`.
 
 ## Examples
 

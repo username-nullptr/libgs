@@ -4,6 +4,10 @@
 option(BUILD_TESTING
 	"-- ${PRO_NAME}: Build tests." OFF
 )
+option(LIBGS_BUILD_CMAKE_TESTS
+	"-- ${PRO_NAME}: Test CMake option constraints and the installed package."
+	${BUILD_TESTING}
+)
 option(LIBGS_ENABLE_TEST_SANITIZERS
 	"-- ${PRO_NAME}: Enable ASan and UBSan for functional and stress tests." OFF
 )
@@ -19,19 +23,19 @@ option(LIBGS_BUILD_STRESS_TESTS
 option(LIBGS_BUILD_PERFORMANCE_TESTS
 	"-- ${PRO_NAME}: Build performance-sensitive benchmarks." OFF
 )
-set(LIBGS_FUNCTIONAL_REPEAT 1 CACHE STRING
+set(LIBGS_FUNCTIONAL_REPEAT 3 CACHE STRING
 	"Execution count for each LibGS functional test case (positive integer)."
 )
 set(LIBGS_FUNCTIONAL_SEED 1 CACHE STRING
 	"Base seed for reproducible LibGS functional tests (non-negative integer)."
 )
-set(LIBGS_FUNCTIONAL_TIMEOUT 60 CACHE STRING
+set(LIBGS_FUNCTIONAL_TIMEOUT 120 CACHE STRING
 	"CTest timeout in seconds for each LibGS functional executable."
 )
-set(LIBGS_STRESS_SCALE 4 CACHE STRING
+set(LIBGS_STRESS_SCALE 5 CACHE STRING
 	"Work multiplier for LibGS stress tests (positive integer)."
 )
-set(LIBGS_STRESS_REPEAT 1 CACHE STRING
+set(LIBGS_STRESS_REPEAT 3 CACHE STRING
 	"Fixture recreation count for each LibGS stress case (positive integer)."
 )
 set(LIBGS_STRESS_SEED 1 CACHE STRING
@@ -91,6 +95,12 @@ if (LIBGS_ENABLE_TEST_SANITIZERS AND LIBGS_ENABLE_TEST_TSAN)
 	)
 endif ()
 
+if (LIBGS_BUILD_CMAKE_TESTS AND NOT BUILD_TESTING)
+	message(FATAL_ERROR
+		"${PRO_NAME}: CMake integration tests require BUILD_TESTING=ON."
+	)
+endif ()
+
 if ((LIBGS_BUILD_STRESS_TESTS OR LIBGS_BUILD_PERFORMANCE_TESTS) AND NOT BUILD_TESTING)
 	message(FATAL_ERROR
 		"${PRO_NAME}: Stress and performance tests require BUILD_TESTING=ON."
@@ -134,26 +144,118 @@ if (LIBGS_BUILD_FUZZERS)
 	include(CheckCXXSourceCompiles)
 	set(libgs_saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
 	set(libgs_saved_required_link_options "${CMAKE_REQUIRED_LINK_OPTIONS}")
+	set(libgs_saved_required_libraries "${CMAKE_REQUIRED_LIBRARIES}")
+	set(libgs_fuzzer_source
+		"#include <cstddef>\n#include <cstdint>\nextern \"C\" int LLVMFuzzerTestOneInput(const uint8_t*, size_t) { return 0; }"
+	)
+	set(libgs_fuzzer_compile_flags
+		-fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer
+	)
+	set(libgs_fuzzer_link_options -fsanitize=fuzzer,address,undefined)
+	if (LIBGS_USE_LIBCXX)
+		list(APPEND libgs_fuzzer_compile_flags -stdlib=libc++)
+		list(APPEND libgs_fuzzer_link_options -stdlib=libc++)
+	endif ()
+	if (LIBGS_USE_LLD)
+		list(APPEND libgs_fuzzer_link_options -fuse-ld=lld)
+	endif ()
+	string(JOIN " " libgs_fuzzer_compile_flags_string
+		${libgs_fuzzer_compile_flags}
+	)
 
 	set(CMAKE_REQUIRED_FLAGS
-		"${libgs_saved_required_flags} -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer"
+		"${libgs_saved_required_flags} ${libgs_fuzzer_compile_flags_string}"
 	)
 	set(CMAKE_REQUIRED_LINK_OPTIONS
 		${libgs_saved_required_link_options}
-		-fsanitize=fuzzer,address,undefined
+		${libgs_fuzzer_link_options}
 	)
 	unset(LIBGS_FUZZER_INSTRUMENTATION_AVAILABLE CACHE)
 
 	check_cxx_source_compiles(
-		"#include <cstddef>\n#include <cstdint>\nextern \"C\" int LLVMFuzzerTestOneInput(const uint8_t*, size_t) { return 0; }"
+		"${libgs_fuzzer_source}"
 		LIBGS_FUZZER_INSTRUMENTATION_AVAILABLE
 	)
+
+	# Some Linux compiler-rt packages build libFuzzer against libstdc++ even
+	# when Clang and libc++ are installed together. In that case the driver can
+	# compile the probe but cannot link the fuzzer runtime with libc++. Place the
+	# packaged runtime after ASan and satisfy only its private ABI dependency.
+	unset(LIBGS_FUZZER_COMPAT_RUNTIME_AVAILABLE CACHE)
+	unset(LIBGS_FUZZER_RUNTIME_LIBRARY)
+	if (NOT LIBGS_FUZZER_INSTRUMENTATION_AVAILABLE AND
+		LIBGS_USE_LIBCXX AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+		execute_process(
+			COMMAND ${CMAKE_CXX_COMPILER} --print-runtime-dir
+			OUTPUT_VARIABLE libgs_clang_runtime_dir
+			OUTPUT_STRIP_TRAILING_WHITESPACE
+			RESULT_VARIABLE libgs_clang_runtime_dir_result
+			ERROR_QUIET
+		)
+		if (CMAKE_CXX_COMPILER_TARGET)
+			set(libgs_clang_target "${CMAKE_CXX_COMPILER_TARGET}")
+		else ()
+			execute_process(
+				COMMAND ${CMAKE_CXX_COMPILER} -dumpmachine
+				OUTPUT_VARIABLE libgs_clang_target
+				OUTPUT_STRIP_TRAILING_WHITESPACE
+				RESULT_VARIABLE libgs_clang_target_result
+				ERROR_QUIET
+			)
+		endif ()
+		string(REGEX MATCH "^[^-]+" libgs_clang_runtime_arch
+			"${libgs_clang_target}"
+		)
+		set(libgs_fuzzer_runtime_candidate
+			"${libgs_clang_runtime_dir}/libclang_rt.fuzzer-${libgs_clang_runtime_arch}.a"
+		)
+
+		if (libgs_clang_runtime_dir_result EQUAL 0 AND
+			EXISTS "${libgs_fuzzer_runtime_candidate}")
+			set(libgs_fuzzer_compat_compile_flags
+				-fsanitize=fuzzer-no-link,address,undefined
+				-fno-omit-frame-pointer
+				-stdlib=libc++
+			)
+			string(JOIN " " libgs_fuzzer_compat_compile_flags_string
+				${libgs_fuzzer_compat_compile_flags}
+			)
+			set(CMAKE_REQUIRED_FLAGS
+				"${libgs_saved_required_flags} ${libgs_fuzzer_compat_compile_flags_string}"
+			)
+			set(CMAKE_REQUIRED_LINK_OPTIONS
+				${libgs_saved_required_link_options}
+				-fsanitize=fuzzer-no-link,address,undefined
+				-stdlib=libc++
+			)
+			if (LIBGS_USE_LLD)
+				list(APPEND CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=lld)
+			endif ()
+			set(CMAKE_REQUIRED_LIBRARIES
+				"${libgs_fuzzer_runtime_candidate}" -Wl,-lstdc++
+			)
+			check_cxx_source_compiles(
+				"${libgs_fuzzer_source}"
+				LIBGS_FUZZER_COMPAT_RUNTIME_AVAILABLE
+			)
+			if (LIBGS_FUZZER_COMPAT_RUNTIME_AVAILABLE)
+				set(LIBGS_FUZZER_RUNTIME_LIBRARY
+					"${libgs_fuzzer_runtime_candidate}"
+				)
+				set(LIBGS_FUZZER_INSTRUMENTATION_AVAILABLE TRUE)
+				message(STATUS
+					"${PRO_NAME}: Use the libstdc++-built libFuzzer runtime with libc++."
+				)
+			endif ()
+		endif ()
+	endif ()
 	set(CMAKE_REQUIRED_FLAGS "${libgs_saved_required_flags}")
 	set(CMAKE_REQUIRED_LINK_OPTIONS ${libgs_saved_required_link_options})
+	set(CMAKE_REQUIRED_LIBRARIES ${libgs_saved_required_libraries})
 
 	if (NOT LIBGS_FUZZER_INSTRUMENTATION_AVAILABLE)
 		message(FATAL_ERROR
-			"${PRO_NAME}: Clang libFuzzer instrumentation is unavailable."
+			"${PRO_NAME}: Clang libFuzzer is unavailable for the selected C++ runtime."
 		)
 	endif ()
 endif ()

@@ -58,10 +58,10 @@ template <typename Value>
 [[nodiscard]] LIBGS_CORE_TAPI
 Value expected_value_or_throw(sys_expected<Value> expected);
 
-template <typename Value>
-[[nodiscard]] LIBGS_CORE_TAPI Value expected_value_or_error (
-	sys_expected<Value> expected, error_code &error
-) noexcept(std::is_nothrow_move_constructible_v<Value>);
+template <typename Value, typename Error>
+[[nodiscard]] LIBGS_CORE_TAPI Value expected_value_or_error(sys_expected<Value> expected, Error &error)
+	noexcept(std::is_nothrow_move_constructible_v<Value>)
+	requires is_error_code_token_v<Error&>;
 
 template <typename T>
 [[nodiscard]] LIBGS_CORE_TAPI auto capture_async_argument(T &&argument);

@@ -58,12 +58,10 @@ bool basic_atomic_shared_mutex<Policy>::try_lock() noexcept
 	if( m_reader_count.load(std::memory_order_acquire) == 0 )
 		return true;
 
-	m_writer_state.store(0, std::memory_order_release);
-	if constexpr( Policy == atomic_mutex_policy::balanced )
-	{
-		m_reader_epoch.fetch_add(1, std::memory_order_relaxed);
-		m_reader_epoch.notify_all();
-	}
+	// A writer may have queued after the compare-exchange above.  Reuse the
+	// normal unlock path so its waiter count is preserved; storing zero here
+	// would lose that count and could leave a phantom writer state forever.
+	unlock();
 	return false;
 }
 

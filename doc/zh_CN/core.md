@@ -15,6 +15,7 @@ Target：`gs.core`。Core 始终构建，是其他模块的基础。
 | `<libgs/core/algorithm.h>` | UUID、SHA-1、通配、编码与数学辅助 |
 | `<libgs/core/lock_free_queue.h>` | 链式与环形无锁队列 |
 | `<libgs/core/atomic_mutex.h>`、`shared_mutex.h` | 原子独占锁与共享锁 |
+| `<libgs/core/jthread.h>` | 可移植的 C++20 自动汇合线程与停止令牌 |
 | `<libgs/core/system.h>` | 应用路径、环境、CPU、动态库 |
 | `<libgs/core/mime_type.h>` | MIME 查询与文本/二进制判断 |
 | `<libgs/core/cxx/...>` | Concepts、traits、格式化、expected/optional 兼容层 |
@@ -61,6 +62,10 @@ int main()
 线程同步使用 Core 的锁和队列；需要挂起协程时使用[协程](coroutines.md)同步原语。
 `atomic_mutex` 与 `atomic_shared_mutex` 默认使用 balanced 策略。low-latency
 策略会持续自旋，只适合受控线程上短小且有界的临界区。
+
+标准库支持时，`libgs::jthread`、`stop_token`、`stop_source` 和
+`stop_callback` 直接映射到对应的标准库类型；否则 Core 基于 `std::thread`
+提供相同的协作停止与析构自动汇合接口。
 
 ## 示例
 

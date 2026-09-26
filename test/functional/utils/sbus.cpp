@@ -449,9 +449,9 @@ void udp_delivery_fragmentation_and_cancellation()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"sbus selected default interface delivery", default_interface_delivery},
 		{"sbus delivery and cancellation", delivery_and_cancellation},
 		{"sbus large payload fanout owns one copy", large_payload_fanout_owns_one_copy},

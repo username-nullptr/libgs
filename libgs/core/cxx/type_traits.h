@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 Xiaoqiang <username_nullptr@163.com>
+// SPDX-FileCopyrightText: 2024-2026 Xiaoqiang <username_nullptr@163.com>
 // SPDX-License-Identifier: MIT
 
 #ifndef LIBGS_CORE_CXX_TYPE_TRAITS_H
@@ -6,9 +6,7 @@
 
 #include <libgs/core/cxx/configs.h>
 #include <libgs/core/cxx/string_concepts.h>
-#include <asio/error.hpp>
-#include <chrono>
-#include <format>
+#include <libgs/core/cxx/asio.h>
 
 namespace libgs
 {
@@ -34,10 +32,26 @@ using years  = std::chrono::years ;
 template<typename Clock, typename Duration>
 using time_point = std::chrono::time_point<Clock, Duration>;
 
-using error_code = std::error_code; //asio::error_code;
+#if LIBGS_USING_BOOST_ASIO
+
+using error_code = boost::system::error_code;
+using error_category_t = boost::system::error_category;
+using boost::system::system_category;
+
+#else //LIBGS_USING_BOOST_ASIO
+
+using error_code = std::error_code;
+using error_category_t = std::error_category;
+using std::system_category;
+
+#endif //LIBGS_USING_BOOST_ASIO
+
+[[nodiscard]] inline error_code make_system_error_code(std::errc value) noexcept {
+	return { std::make_error_code(value) };
+}
 namespace errc = asio::error;
 
-template <size_t N>
+template <size_t>
 struct byte_type {};
 
 template <> struct byte_type<1> { using unsigned_t = uint8_t ; using signed_t = int8_t ; };

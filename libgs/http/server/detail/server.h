@@ -275,7 +275,7 @@ private:
 	{
 		tk_handler_ptr handler {};
 		const std::string *selected_rule = nullptr;
-		auto routes = m_routes.load(std::memory_order_acquire);
+		auto routes = load_routes();
 
 		if( auto exact = routes->exact.find(context.request().path());
 			exact != routes->exact.end() )
@@ -555,7 +555,31 @@ public:
 		std::map<std::string,pattern_route> patterns {};
 	};
 
+#if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L
+	using route_table_snapshot = std::atomic<std::shared_ptr<const route_table>>;
+#else //clang-libc++
+	using route_table_snapshot = std::shared_ptr<const route_table>;
+#endif //clang-libc++
+
 private:
+	[[nodiscard]] std::shared_ptr<const route_table> load_routes() const noexcept
+	{
+#if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L
+		return m_routes.load(std::memory_order_acquire);
+#else //clang-libc++
+		return std::atomic_load_explicit(&m_routes, std::memory_order_acquire);
+#endif //clang-libc++
+	}
+
+	void store_routes(std::shared_ptr<const route_table> routes) noexcept
+	{
+#if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L
+		m_routes.store(std::move(routes), std::memory_order_release);
+#else //clang-libc++
+		std::atomic_store_explicit(&m_routes, std::move(routes), std::memory_order_release);
+#endif //clang-libc++
+	}
+
 	[[nodiscard]] static bool is_path_argument_segment(std::string_view segment) noexcept
 	{
 		if( segment.size() < 2 or not segment.starts_with('{') or
@@ -723,7 +747,7 @@ public:
 		// Publishing a table copies containers and may allocate. A blocking writer
 		// lock avoids wasting CPU; request dispatch never waits on this mutex.
 		std::lock_guard lock(m_routes_write_mutex);
-		auto current = m_routes.load(std::memory_order_acquire);
+		auto current = load_routes();
 
 		if( current->exact.contains(rule) or current->patterns.contains(rule) )
 			return false;
@@ -736,14 +760,14 @@ public:
 			auto compiled = compile_pattern(rule, std::move(handler));
 			updated->patterns.emplace(std::move(rule), std::move(compiled));
 		}
-		m_routes.store(std::move(updated), std::memory_order_release);
+		store_routes(std::move(updated));
 		return true;
 	}
 
 	void remove_route(const std::string &rule)
 	{
 		std::lock_guard lock(m_routes_write_mutex);
-		auto current = m_routes.load(std::memory_order_acquire);
+		auto current = load_routes();
 
 		if( not current->exact.contains(rule) and not current->patterns.contains(rule) )
 			return ;
@@ -751,8 +775,7 @@ public:
 		auto updated = std::make_shared<route_table>(*current);
 		updated->exact.erase(rule);
 		updated->patterns.erase(rule);
-
-		m_routes.store(std::move(updated), std::memory_order_release);
+		store_routes(std::move(updated));
 	}
 
 public:
@@ -764,7 +787,7 @@ public:
 	request_handler_t m_default_handler {};
 
 	// A request keeps its immutable snapshot alive while selecting a handler.
-	std::atomic<std::shared_ptr<const route_table>> m_routes {
+	route_table_snapshot m_routes {
 		std::make_shared<const route_table>()
 	};
 	std::mutex m_routes_write_mutex {};

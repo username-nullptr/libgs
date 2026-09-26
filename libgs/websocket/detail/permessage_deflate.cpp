@@ -140,7 +140,7 @@ error_code permessage_inflater::reset(uint8_t window_bits, bool no_context_takeo
 {
 #if LIBGS_WEBSOCKET_ZLIB_SUPPORT
 	if( window_bits < 8 or window_bits > 15 )
-		return make_error_code(std::errc::invalid_argument);
+		return make_system_error_code(std::errc::invalid_argument);
 	try {
 		auto state = std::make_unique<impl>();
 		state->window_bits = window_bits;
@@ -148,17 +148,17 @@ error_code permessage_inflater::reset(uint8_t window_bits, bool no_context_takeo
 
 		const auto zlib_window_bits = window_bits == 8 ? 9 : window_bits;
 		if( inflateInit2(&state->stream, -static_cast<int>(zlib_window_bits)) != Z_OK )
-			return make_error_code(std::errc::io_error);
+			return make_system_error_code(std::errc::io_error);
 
 		state->initialized = true;
 		m_impl = std::move(state);
 		return {};
 	}
 	catch(const std::bad_alloc&) {
-		return make_error_code(std::errc::not_enough_memory);
+		return make_system_error_code(std::errc::not_enough_memory);
 	}
 	catch(...) {}
-	return make_error_code(std::errc::io_error);
+	return make_system_error_code(std::errc::io_error);
 
 #else //LIBGS_WEBSOCKET_ZLIB_SUPPORT
 	ignore_unused(window_bits, no_context_takeover);
@@ -178,10 +178,10 @@ sys_expected<std::vector<std::byte>> permessage_inflater::inflate_chunk
 #if LIBGS_WEBSOCKET_ZLIB_SUPPORT
 	try {
 		if( not m_impl or not m_impl->initialized )
-			return sys_unexpected(make_error_code(std::errc::io_error));
+			return sys_unexpected(make_system_error_code(std::errc::io_error));
 
 		if( payload.size() > std::numeric_limits<size_t>::max() - m_impl->message_input_size )
-			return sys_unexpected(make_error_code(std::errc::value_too_large));
+			return sys_unexpected(make_system_error_code(std::errc::value_too_large));
 
 		m_impl->message_input_size += payload.size();
 
@@ -251,15 +251,15 @@ sys_expected<std::vector<std::byte>> permessage_inflater::inflate_chunk
 
 			if( m_impl->no_context_takeover and
 				inflateReset2(&m_impl->stream, -static_cast<int>(zlib_window_bits)) != Z_OK )
-				return sys_unexpected(make_error_code(std::errc::io_error));
+				return sys_unexpected(make_system_error_code(std::errc::io_error));
 		}
 		return result;
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 
 #else //LIBGS_WEBSOCKET_ZLIB_SUPPORT
 	ignore_unused(payload, final, max_output_size);
@@ -363,10 +363,10 @@ sys_expected<extension> negotiate_permessage_deflate
 		return permessage_deflate_extension(selected);
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 
 #else //LIBGS_WEBSOCKET_ZLIB_SUPPORT
 	ignore_unused(offer, policy);
@@ -422,14 +422,14 @@ sys_expected<std::vector<std::byte>> deflate_message
 #if LIBGS_WEBSOCKET_ZLIB_SUPPORT
 	try {
 		if( window_bits < 8 or window_bits > 15 or compression_level < -1 or compression_level > 9 )
-			return result.despair(make_error_code(std::errc::invalid_argument));
+			return result.despair(make_system_error_code(std::errc::invalid_argument));
 
 		const auto zlib_window_bits = window_bits == 8 ? 9 : window_bits;
 		z_stream stream {};
 
 		if( deflateInit2(&stream, compression_level, Z_DEFLATED,
 			-static_cast<int>(zlib_window_bits), 8, Z_DEFAULT_STRATEGY) != Z_OK )
-			return result.despair(make_error_code(std::errc::io_error));
+			return result.despair(make_system_error_code(std::errc::io_error));
 
 		struct guard_t
 		{
@@ -463,7 +463,7 @@ sys_expected<std::vector<std::byte>> deflate_message
 		for(const auto &buffer : buffers)
 		{
 			if( buffer.size() != 0 and buffer.data() == nullptr )
-				return result.despair(make_error_code(std::errc::invalid_argument));
+				return result.despair(make_system_error_code(std::errc::invalid_argument));
 
 			auto *input = static_cast<const std::byte*>(buffer.data());
 			auto remaining = buffer.size();
@@ -477,7 +477,7 @@ sys_expected<std::vector<std::byte>> deflate_message
 				stream.avail_in = size;
 
 				if( not pump(Z_NO_FLUSH) )
-					return result.despair(make_error_code(std::errc::io_error));
+					return result.despair(make_system_error_code(std::errc::io_error));
 
 				input += size;
 				remaining -= size;
@@ -487,7 +487,7 @@ sys_expected<std::vector<std::byte>> deflate_message
 		stream.avail_in = 0;
 
 		if( not pump(Z_SYNC_FLUSH) )
-			return result.despair(make_error_code(std::errc::io_error));
+			return result.despair(make_system_error_code(std::errc::io_error));
 
 		constexpr std::array trailer {
 			std::byte {0x00}, std::byte {0x00},
@@ -495,16 +495,16 @@ sys_expected<std::vector<std::byte>> deflate_message
 		};
 		if( result->size() < trailer.size() or
 			not std::equal(trailer.begin(), trailer.end(), result->end() - trailer.size()) )
-			return result.despair(make_error_code(std::errc::io_error));
+			return result.despair(make_system_error_code(std::errc::io_error));
 
 		result->resize(result->size() - trailer.size());
 		return result;
 	}
 	catch(const std::bad_alloc&) {
-		result.despair(make_error_code(std::errc::not_enough_memory));
+		result.despair(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {
-		result.despair(make_error_code(std::errc::io_error));
+		result.despair(make_system_error_code(std::errc::io_error));
 	}
 	return result;
 

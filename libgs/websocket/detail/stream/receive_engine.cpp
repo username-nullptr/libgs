@@ -76,7 +76,7 @@ receive_event_result receive_engine::next_event(receive_target target) noexcept
 		{
 			auto error = std::exchange(m_read_error, {});
 			if( not error )
-				error = make_error_code(std::errc::io_error);
+				error = make_system_error_code(std::errc::io_error);
 
 			return {
 				.error = error,
@@ -125,7 +125,7 @@ awaitable<receive_event_result> receive_engine::async_next_event(receive_target 
 		{
 			auto error = std::exchange(m_read_error, {});
 			if( not error )
-				error = make_error_code(std::errc::io_error);
+				error = make_system_error_code(std::errc::io_error);
 
 			co_return receive_event_result {
 				.error = error,
@@ -150,7 +150,7 @@ message receive_engine::read(error_code &error) noexcept
 	}
 	if( m_read_active )
 	{
-		error = make_error_code(std::errc::operation_in_progress);
+		error = make_system_error_code(std::errc::operation_in_progress);
 		return {};
 	}
 	m_read_active = true;
@@ -225,7 +225,7 @@ data_frame receive_engine::read_frame(error_code &error) noexcept
 	}
 	if( m_read_active )
 	{
-		error = make_error_code(std::errc::operation_in_progress);
+		error = make_system_error_code(std::errc::operation_in_progress);
 		return {};
 	}
 	m_read_active = true;
@@ -297,7 +297,7 @@ void receive_engine::async_read_message(message_handler_t completion)
 	if( state_error or self->receive_side().m_read_active )
 	{
 		auto error = self->receive_side().m_read_active ?
-			make_error_code(std::errc::operation_in_progress) : state_error;
+			make_system_error_code(std::errc::operation_in_progress) : state_error;
 
 		post_completion(self->receive_executor(),
 			std::move(completion), error, message{}
@@ -455,7 +455,7 @@ void receive_engine::async_read_frame(frame_handler_t completion)
 	if( state_error or self->receive_side().m_read_active )
 	{
 		auto error = self->receive_side().m_read_active ?
-			make_error_code(std::errc::operation_in_progress) : state_error;
+			make_system_error_code(std::errc::operation_in_progress) : state_error;
 
 		post_completion(self->receive_executor(),
 			std::move(completion), error, data_frame{}

@@ -62,6 +62,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 			std::abort();
 	}
 	parsed.clear_fragment().unset_parameter(std::string(left));
-	libgs::ignore_unused(libgs::url::resolve(parsed, right));
+	try {
+		libgs::ignore_unused(libgs::url::resolve(parsed, right));
+	}
+	catch(const libgs::invalid_argument&) {}
 	return 0;
 }

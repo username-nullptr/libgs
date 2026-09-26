@@ -30,7 +30,9 @@ static LPSTR convert_error_code_to_string(DWORD errc)
 
 [[nodiscard]] static error_code sys_error()
 {
-	return { static_cast<int>(GetLastError()), std::system_category() };
+	return error_code(std::error_code (
+		static_cast<int>(GetLastError()), std::system_category()
+	));
 }
 
 sys_expected<path_t> file_path() noexcept

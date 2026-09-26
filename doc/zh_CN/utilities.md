@@ -66,6 +66,10 @@ I/O 未完成时保持 Process 存活；生命周期调用与 I/O 发起必须�
 `LIBGS_UTILS_SBUS_DEFAULT_INTERFACE` 为未限定 API 选择 `local`（默认）或
 `udp`。依赖固定传输的代码应显式写出类型。
 
+`cache::wait_changed()` 遵循通用 I/O completion token 模型，等待发起后的下一次
+变化。它是边沿触发的，不回放此前的变化；持续监听请使用 `changed()`。
+`cache::cancel()` 只取消当前等待，不会断开持续监听，也不影响之后发起的等待。
+
 UDP 传输带版本、分片、限速，并限制来源跟踪、重组和回调交付队列；支持进程、LAN 与
 路由多播范围。它是 best-effort：过载保护可能丢弃流量，也不提供认证、加密或可靠
 重放。网络策略与 ACL 应在 LibGS 外配置。

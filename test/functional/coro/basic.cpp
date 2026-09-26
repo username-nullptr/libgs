@@ -348,9 +348,9 @@ void future_waiting()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"mutex state", mutex_state},
 		{"unique lock ownership", unique_lock_ownership},
 		{"semaphore counts", semaphore_counts},

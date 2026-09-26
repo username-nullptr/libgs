@@ -7,10 +7,30 @@
 #include <libgs/websocket/server.h>
 #include <libgs/core/system/app_utls.h>
 
+#include <thread>
+
 namespace
 {
 
 namespace ws = libgs::websocket;
+
+class thread_joiner
+{
+public:
+	explicit thread_joiner(std::thread &thread) noexcept : m_thread(thread) {}
+
+	thread_joiner(const thread_joiner &) = delete;
+	thread_joiner &operator=(const thread_joiner &) = delete;
+
+	~thread_joiner()
+	{
+		if( m_thread.joinable() )
+			m_thread.join();
+	}
+
+private:
+	std::thread &m_thread;
+};
 
 class scoped_environment
 {
@@ -153,7 +173,7 @@ void secure_round_trip()
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("no_proxy"));
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("NO_PROXY"));
 	std::exception_ptr proxy_error;
-	std::jthread proxy_thread([&]
+	std::thread proxy_thread([&]
 	{
 		try {
 			auto downstream = std::make_shared<asio::ip::tcp::socket>(proxy_context);
@@ -166,7 +186,7 @@ void secure_round_trip()
 				asio::read(*downstream, asio::buffer(&byte, 1), error);
 				if( error or header.size() >= 16 * 1024 )
 					throw std::system_error(error ? error :
-						std::make_error_code(std::errc::message_size));
+						libgs::make_system_error_code(std::errc::message_size));
 				header.push_back(byte);
 			}
 			const auto expected_target = std::format(
@@ -182,13 +202,15 @@ void secure_round_trip()
 				"HTTP/1.1 200 Connection Established\r\n\r\n";
 			asio::write(*downstream, asio::buffer(connected));
 
-			std::jthread outbound([=] { relay_socket(downstream, upstream); });
+			std::thread outbound([=] { relay_socket(downstream, upstream); });
+			thread_joiner outbound_joiner(outbound);
 			relay_socket(upstream, downstream);
 		}
 		catch(...) {
 			proxy_error = std::current_exception();
 		}
 	});
+	thread_joiner proxy_thread_joiner(proxy_thread);
 
 	auto accepted = asio::co_spawn(context,
 		[&]() -> libgs::awaitable<void>
@@ -200,9 +222,9 @@ void secure_round_trip()
 			LIBGS_TEST_CHECK_EQ(message.body, "hello over TLS");
 			co_await connection.stream.write_text(
 				"secure: " + message.body, libgs::use_awaitable);
-			auto [close_error, trailing] = co_await
-				connection.stream.read<std::string>(
-					asio::as_tuple(libgs::use_awaitable));
+			auto close_result = co_await connection.stream.read<std::string>(
+				asio::as_tuple(libgs::use_awaitable));
+			auto &[close_error, trailing] = close_result;
 			libgs::ignore_unused(close_error, trailing);
 			co_return;
 		}, asio::use_future);
@@ -234,8 +256,9 @@ void secure_round_trip()
 			auto response = co_await stream.read<std::string>(
 				libgs::use_awaitable);
 			LIBGS_TEST_CHECK_EQ(response.body, "secure: hello over TLS");
-			auto [close_error, closed] = co_await stream.close(
+			auto close_result = co_await stream.close(
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[close_error, closed] = close_result;
 			service.stop();
 			LIBGS_TEST_CHECK(not close_error);
 			LIBGS_TEST_CHECK(closed.clean);
@@ -252,9 +275,9 @@ void secure_round_trip()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"secure round trip", secure_round_trip},
 	});
 }

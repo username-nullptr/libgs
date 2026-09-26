@@ -22,17 +22,16 @@ namespace libgs::websocket::detail { namespace
 
 [[nodiscard]] sys_expected<> invalid_output() noexcept
 {
-	return sys_unexpected(make_error_code(std::errc::invalid_argument));
+	return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 }
 
 #if !defined(_WIN32) && \
 	!(defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || \
 	  defined(__OpenBSD__) || defined(__DragonFly__))
-[[nodiscard]] error_code errno_error() noexcept
-{
-	return {errno, std::generic_category()};
+[[nodiscard]] error_code errno_error() noexcept {
+	return { std::error_code(errno, std::generic_category()) };
 }
-#endif
+#endif //...
 
 } //namespace
 
@@ -60,7 +59,7 @@ sys_expected<> secure_random_bytes(const mutable_buffer &output) noexcept
 		if( status < 0 )
 		{
 			return sys_unexpected(error_code (
-				static_cast<int>(status), std::system_category()
+				static_cast<int>(status), system_category()
 			));
 		}
 		data += chunk;
@@ -82,7 +81,7 @@ sys_expected<> secure_random_bytes(const mutable_buffer &output) noexcept
 		if( size == 0 )
 		{
 			return sys_unexpected (
-				make_error_code(std::errc::io_error)
+				make_system_error_code(std::errc::io_error)
 			);
 		}
 		data += static_cast<size_t>(size);
@@ -122,7 +121,7 @@ sys_expected<> secure_random_bytes(const mutable_buffer &output) noexcept
 		}
 		if( size == 0 )
 		{
-			read_error = make_error_code(std::errc::io_error);
+			read_error = make_system_error_code(std::errc::io_error);
 			break;
 		}
 		data += static_cast<size_t>(size);

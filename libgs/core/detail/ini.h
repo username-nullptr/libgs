@@ -325,7 +325,7 @@ public:
 		if( not file_exists )
 		{
 			if( not ignore_missing )
-				error = make_error_code(std::errc::no_such_file_or_directory);
+				error = make_system_error_code(std::errc::no_such_file_or_directory);
 			return data;
 		}
 		if( cancelled(cancellation) )
@@ -384,7 +384,7 @@ public:
 				}
 			}
 			if( file.bad() )
-				error = make_error_code(std::errc::io_error);
+				error = make_system_error_code(std::errc::io_error);
 
 			else if( cancelled(cancellation) )
 				error = make_error_code(asio::error::operation_aborted);
@@ -408,7 +408,7 @@ public:
 
 		if( destination.empty() )
 		{
-			error = make_error_code(std::errc::invalid_argument);
+			error = make_system_error_code(std::errc::invalid_argument);
 			return ;
 		}
 		if( cancelled(cancellation) )
@@ -489,7 +489,7 @@ public:
 			{
 				file.flush();
 				if( not file )
-					error = make_error_code(std::errc::io_error);
+					error = make_system_error_code(std::errc::io_error);
 			}
 		}
 		catch(const std::system_error &ex) {
@@ -528,8 +528,11 @@ public:
 
 		if constexpr( is_error_code_token_v<Token> )
 		{
-			auto loaded_data = load_file(file_name, token, no_cancellation, IgnoreMissing);
-			if( not token )
+			auto adapted_error = adapt_error_code(token);
+			auto &error = adapted_error.get();
+
+			auto loaded_data = load_file(file_name, error, no_cancellation, IgnoreMissing);
+			if( not error )
 				set_data(std::move(loaded_data));
 		}
 		else if constexpr( is_sync_opt_token_v<Token> )
@@ -598,7 +601,10 @@ public:
 		const cancellation_state_t no_cancellation;
 
 		if constexpr( is_error_code_token_v<Token> )
-			sync_file(file_name, data(), token, no_cancellation);
+		{
+			auto adapted_error = adapt_error_code(token);
+			sync_file(file_name, data(), adapted_error.get(), no_cancellation);
+		}
 
 		else if constexpr( is_sync_opt_token_v<Token> )
 		{

@@ -39,13 +39,13 @@ sys_expected<prepared_frame> frame_builder::prepare_control
 {
 	try {
 		if( op != opcode::ping and op != opcode::pong and op != opcode::close )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		if( payload.size() > 125 )
 			return sys_unexpected(make_error_code(protocol_errc::ctrl_payload_too_large));
 
 		if( payload.size() != 0 and payload.data() == nullptr )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		frame_header header{.op = op, .payload_size = payload.size()};
 		if( m_role == role::client )
@@ -109,10 +109,10 @@ sys_expected<prepared_frame> frame_builder::prepare_control
 		return result;
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 }
 
 sys_expected<prepared_frame> frame_builder::prepare_close(const close_frame &frame) const noexcept
@@ -128,10 +128,10 @@ sys_expected<prepared_frame> frame_builder::prepare_data_frame
 {
 	try {
 		if( type != message_type::text and type != message_type::binary )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		if( payload.size() != 0 and payload.data() == nullptr )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		frame_header header {
 			.fin = fin,
@@ -194,10 +194,10 @@ sys_expected<prepared_frame> frame_builder::prepare_data_frame
 		return result;
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 }
 
 sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
@@ -205,7 +205,7 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 {
 	try {
 		if( type != message_type::text and type != message_type::binary )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		size_t body_size = 0;
 		utf8_validator utf8;
@@ -213,14 +213,14 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 		for(const auto &buffer : buffers)
 		{
 			if( buffer.size() > std::numeric_limits<size_t>::max() - body_size )
-				return sys_unexpected(make_error_code(std::errc::value_too_large));
+				return sys_unexpected(make_system_error_code(std::errc::value_too_large));
 
 			if( buffer.size() == 0 )
 				continue;
 
 			const auto *data = static_cast<const std::byte *>(buffer.data());
 			if( data == nullptr )
-				return sys_unexpected(make_error_code(std::errc::invalid_argument));
+				return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 			body_size += buffer.size();
 			if( type == message_type::text and
@@ -236,7 +236,7 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 		if( options.compression != compression_mode::automatic and
 			options.compression != compression_mode::enabled and
 			options.compression != compression_mode::disabled )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		bool compress = false;
 		if( options.compression == compression_mode::enabled )
@@ -279,7 +279,7 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 			m_fragment_size == 0 ? 1 : 1 + (wire_body_size - 1) / m_fragment_size;
 
 		if( frame_count > frames.max_size() )
-			return sys_unexpected(make_error_code(std::errc::value_too_large));
+			return sys_unexpected(make_system_error_code(std::errc::value_too_large));
 		frames.reserve(frame_count);
 
 		size_t offset = 0;
@@ -350,7 +350,7 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 					buffer_offset = 0;
 				}
 				if( buffer_index == payload_buffers.size() )
-					return sys_unexpected(make_error_code(std::errc::io_error));
+					return sys_unexpected(make_system_error_code(std::errc::io_error));
 
 				const auto &source = payload_buffers[buffer_index];
 				const auto available = source.size() - buffer_offset;
@@ -381,10 +381,10 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 		return frames;
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 }
 
 } //namespace libgs::websocket::detail

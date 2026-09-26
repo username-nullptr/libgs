@@ -64,7 +64,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 		libgs::ignore_unused(parser.version());
 		libgs::ignore_unused(parser.keep_alive());
 		libgs::ignore_unused(parser.support_gzip());
-		if(parser.take_body() != contiguous.take_body() or
+		if(parser.take_body() != contiguous.take_body())
+			std::abort();
+		// Once the fragmented parser finishes a message, bytes after the final
+		// supplied chunk have intentionally not been appended.  Pending data is
+		// comparable only when both parsers received the complete fuzz payload.
+		if(offset == size and
 			parser.take_pending_data() != contiguous.take_pending_data())
 			std::abort();
 	}

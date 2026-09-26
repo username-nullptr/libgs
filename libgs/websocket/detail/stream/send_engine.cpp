@@ -51,7 +51,7 @@ auto send_engine::prepare_message
 		std::ranges::any_of(m_data_write_queue, [](const auto &operation) {
 			return operation->explicit_data_frame;
 		}) )
-		return sys_unexpected(make_error_code(std::errc::operation_in_progress));
+		return sys_unexpected(make_system_error_code(std::errc::operation_in_progress));
 
 	return m_frame_builder.prepare_message(type, buffers, options);
 }
@@ -62,10 +62,10 @@ auto send_engine::prepare_data_frame
 {
 	try {
 		if( type != message_type::text and type != message_type::binary )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		if( payload.size() != 0 and payload.data() == nullptr )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		if( m_outgoing_message_type )
 		{
@@ -73,13 +73,13 @@ auto send_engine::prepare_data_frame
 				return sys_unexpected(make_error_code(protocol_errc::data_during_fragmentation));
 
 			if( type != *m_outgoing_message_type )
-				return sys_unexpected(make_error_code(std::errc::invalid_argument));
+				return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 		}
 		else if( continuation )
 			return sys_unexpected(make_error_code(protocol_errc::unexpected_continuation));
 
 		if( payload.size() > std::numeric_limits<size_t>::max() - m_outgoing_message_size )
-			return sys_unexpected(make_error_code(std::errc::value_too_large));
+			return sys_unexpected(make_system_error_code(std::errc::value_too_large));
 
 		const auto message_size = m_outgoing_message_size + payload.size();
 		if( m_max_message_size != 0 and message_size > m_max_message_size )
@@ -113,10 +113,10 @@ auto send_engine::prepare_data_frame
 		return result;
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 }
 
 bool send_engine::busy() const noexcept
@@ -410,7 +410,7 @@ void send_engine::async_write_message
 	}
 	catch(const std::bad_alloc&)
 	{
-		auto error = make_error_code(std::errc::not_enough_memory);
+		auto error = make_system_error_code(std::errc::not_enough_memory);
 		if( operation and operation->completion )
 			self->send_side().deliver_send_completion(operation, error);
 		else
@@ -422,7 +422,7 @@ void send_engine::async_write_message
 	}
 	catch(...)
 	{
-		auto error = make_error_code(std::errc::io_error);
+		auto error = make_system_error_code(std::errc::io_error);
 		if( operation and operation->completion )
 			self->send_side().deliver_send_completion(operation, error);
 		else
@@ -448,7 +448,7 @@ void send_engine::async_write_data_frame
 	}
 	if( self->send_side().data_busy() )
 	{
-		auto error = make_error_code(std::errc::operation_in_progress);
+		auto error = make_system_error_code(std::errc::operation_in_progress);
 		post_completion(self->send_executor(),
 			std::move(completion), error, size_t{0}
 		);
@@ -494,7 +494,7 @@ void send_engine::async_write_data_frame
 	}
 	catch(const std::bad_alloc&)
 	{
-		auto error = make_error_code(std::errc::not_enough_memory);
+		auto error = make_system_error_code(std::errc::not_enough_memory);
 		if( operation and operation->completion )
 			self->send_side().deliver_send_completion(operation, error);
 		else
@@ -506,7 +506,7 @@ void send_engine::async_write_data_frame
 	}
 	catch(...)
 	{
-		auto error = make_error_code(std::errc::io_error);
+		auto error = make_system_error_code(std::errc::io_error);
 		if( operation and operation->completion )
 			self->send_side().deliver_send_completion(operation, error);
 		else
@@ -518,7 +518,7 @@ void send_engine::async_write_data_frame
 	}
 }
 
-size_t detail::send_engine::write_data_frame
+size_t send_engine::write_data_frame
 (message_type type, const const_buffer &payload, bool continuation, bool fin, error_code &error) noexcept
 {
 	error.clear();
@@ -529,7 +529,7 @@ size_t detail::send_engine::write_data_frame
 	}
 	if( busy() )
 	{
-		error = make_error_code(std::errc::operation_in_progress);
+		error = make_system_error_code(std::errc::operation_in_progress);
 		return 0;
 	}
 	auto prepared = prepare_data_frame(type, payload, continuation, fin);
@@ -592,7 +592,7 @@ void send_engine::async_write_control
 	}
 	catch(const std::bad_alloc&)
 	{
-		auto error = make_error_code(std::errc::not_enough_memory);
+		auto error = make_system_error_code(std::errc::not_enough_memory);
 		if( operation and operation->completion )
 			self->send_side().deliver_send_completion(operation, error);
 		else
@@ -604,7 +604,7 @@ void send_engine::async_write_control
 	}
 	catch(...)
 	{
-		auto error = make_error_code(std::errc::io_error);
+		auto error = make_system_error_code(std::errc::io_error);
 		if( operation and operation->completion )
 			self->send_side().deliver_send_completion(operation, error);
 		else
@@ -642,7 +642,7 @@ void send_engine::wait_written(error_code &error) noexcept
 {
 	if( m_completed_write_sequence < m_last_write_sequence )
 	{
-		error = make_error_code(std::errc::operation_in_progress);
+		error = make_system_error_code(std::errc::operation_in_progress);
 		return ;
 	}
 	error = observe_write_error(m_last_write_sequence);
@@ -699,7 +699,7 @@ void send_engine::async_wait_written(void_handler_t completion)
 	}
 	catch(const std::bad_alloc&)
 	{
-		auto error = make_error_code(std::errc::not_enough_memory);
+		auto error = make_system_error_code(std::errc::not_enough_memory);
 		if( waiter )
 		{
 			if( queued )
@@ -719,7 +719,7 @@ void send_engine::async_wait_written(void_handler_t completion)
 	}
 	catch(...)
 	{
-		auto error = make_error_code(std::errc::io_error);
+		auto error = make_system_error_code(std::errc::io_error);
 		if( waiter )
 		{
 			if( queued )
@@ -749,7 +749,7 @@ void send_engine::complete_wire_frame(const prepared_frame &frame, wire_frame_ki
 		std::min(frame.payload_size, wire_size - frame.header_size) : 0;
 
 	if( not error and wire_size != frame.header_size + frame.payload_size )
-		error = make_error_code(std::errc::io_error);
+		error = make_system_error_code(std::errc::io_error);
 
 	if( operation )
 	{
@@ -1050,7 +1050,7 @@ error_code send_engine::enqueue_send_operation
 		if( operation and operation->kind == send_kind::data )
 			m_queued_write_bytes -= operation->queued_payload_size;
 
-		return make_error_code(std::errc::not_enough_memory);
+		return make_system_error_code(std::errc::not_enough_memory);
 	}
 	catch(...)
 	{
@@ -1060,7 +1060,7 @@ error_code send_engine::enqueue_send_operation
 		if( operation and operation->kind == send_kind::data )
 			m_queued_write_bytes -= operation->queued_payload_size;
 	}
-	return make_error_code(std::errc::io_error);
+	return make_system_error_code(std::errc::io_error);
 }
 
 sys_expected<> send_engine::retain_protocol_payload
@@ -1071,10 +1071,10 @@ sys_expected<> send_engine::retain_protocol_payload
 		return make_sys_expected();
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 }
 
 } //namespace libgs::websocket::detail

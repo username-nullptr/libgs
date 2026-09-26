@@ -33,17 +33,17 @@ size_t basic_stream<Exec>::impl::write
 	}
 	if( m_state == connection_state::failed )
 	{
-		error = m_error ? m_error : make_error_code(std::errc::io_error);
+		error = m_error ? m_error : make_system_error_code(std::errc::io_error);
 		return 0;
 	}
 	if( type != message_type::text and type != message_type::binary )
 	{
-		error = make_error_code(std::errc::invalid_argument);
+		error = make_system_error_code(std::errc::invalid_argument);
 		return 0;
 	}
 	if( m_send_engine.busy() )
 	{
-		error = make_error_code(std::errc::operation_in_progress);
+		error = make_system_error_code(std::errc::operation_in_progress);
 		return 0;
 	}
 	auto prepared = m_send_engine.prepare_message(type, buffers, options);
@@ -84,7 +84,7 @@ size_t basic_stream<Exec>::impl::write_prepared
 {
 	if( m_send_engine.busy() )
 	{
-		error = make_error_code(std::errc::operation_in_progress);
+		error = make_system_error_code(std::errc::operation_in_progress);
 		return 0;
 	}
 	const auto wire_size = m_connection->write (
@@ -94,7 +94,7 @@ size_t basic_stream<Exec>::impl::write_prepared
 		std::min(frame.payload_size, wire_size - frame.header_size) : 0;
 
 	if( not error and wire_size != frame.header_size + frame.payload_size )
-		error = make_error_code(std::errc::io_error);
+		error = make_system_error_code(std::errc::io_error);
 	return payload_size;
 }
 
@@ -125,7 +125,7 @@ void basic_stream<Exec>::impl::async_write_control
 	if( not automatic and automatic_control_enabled() )
 	{
 		post_completion(m_exec, std::move(handler),
-			make_error_code(std::errc::operation_not_permitted), size_t{0}
+			make_system_error_code(std::errc::operation_not_permitted), size_t{0}
 		);
 		return ;
 	}
@@ -138,7 +138,7 @@ size_t basic_stream<Exec>::impl::write_control
 {
 	if( not automatic and automatic_control_enabled() )
 	{
-		error = make_error_code(std::errc::operation_not_permitted);
+		error = make_system_error_code(std::errc::operation_not_permitted);
 		return 0;
 	}
 	return m_send_engine.write_control(op, payload, error);
