@@ -308,27 +308,29 @@ endif ()
 # archives.  It is a dedicated harness configuration rather than an installable
 # package configuration, so validate installation in all other test builds.
 if (NOT LIBGS_BUILD_FUZZERS)
-	add_test(NAME libgs.cmake.install-consumer
-		COMMAND ${CMAKE_COMMAND}
-			"-DTEST_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/consumer"
-			"-DTEST_BINARY_DIR=${libgs_cmake_test_work_dir}/consumer-build"
-			"-DTEST_MISSING_BINARY_DIR=${libgs_cmake_test_work_dir}/consumer-missing-build"
-			"-DTEST_INSTALL_PREFIX=${libgs_cmake_test_work_dir}/install"
-			"-DTEST_INSTALL_CMAKEDIR=${LIBGS_INSTALL_CMAKEDIR}"
-			"-DLIBGS_BINARY_DIR=${PROJECT_BINARY_DIR}"
-			"-DTEST_GENERATOR=${CMAKE_GENERATOR}"
-			"-DTEST_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"
-			"-DTEST_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}"
-			"-DTEST_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
-			"-DTEST_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
-			"-DTEST_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}"
-			"-DTEST_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
-			"-DTEST_CONFIGURATION=${libgs_consumer_configuration}"
-			"-DTEST_VERSION=${PROJECT_VERSION}"
-			"-DTEST_COMPONENTS=${libgs_consumer_components_arg}"
-			"-DTEST_MISSING_COMPONENT=${libgs_missing_component}"
-			"-DTEST_CTEST_COMMAND=${CMAKE_CTEST_COMMAND}"
-			-P "${CMAKE_CURRENT_SOURCE_DIR}/run_install_consumer.cmake"
+	# Use the common launcher so sanitizer process settings (notably TSan's
+	# setarch -R personality) are inherited by the nested consumer CTest.
+	add_libgs_ctest(libgs.cmake.install-consumer
+		${CMAKE_COMMAND}
+		"-DTEST_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/consumer"
+		"-DTEST_BINARY_DIR=${libgs_cmake_test_work_dir}/consumer-build"
+		"-DTEST_MISSING_BINARY_DIR=${libgs_cmake_test_work_dir}/consumer-missing-build"
+		"-DTEST_INSTALL_PREFIX=${libgs_cmake_test_work_dir}/install"
+		"-DTEST_INSTALL_CMAKEDIR=${LIBGS_INSTALL_CMAKEDIR}"
+		"-DLIBGS_BINARY_DIR=${PROJECT_BINARY_DIR}"
+		"-DTEST_GENERATOR=${CMAKE_GENERATOR}"
+		"-DTEST_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"
+		"-DTEST_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}"
+		"-DTEST_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
+		"-DTEST_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+		"-DTEST_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}"
+		"-DTEST_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+		"-DTEST_CONFIGURATION=${libgs_consumer_configuration}"
+		"-DTEST_VERSION=${PROJECT_VERSION}"
+		"-DTEST_COMPONENTS=${libgs_consumer_components_arg}"
+		"-DTEST_MISSING_COMPONENT=${libgs_missing_component}"
+		"-DTEST_CTEST_COMMAND=${CMAKE_CTEST_COMMAND}"
+		-P "${CMAKE_CURRENT_SOURCE_DIR}/run_install_consumer.cmake"
 	)
 	set_tests_properties(libgs.cmake.install-consumer PROPERTIES
 		LABELS "cmake;install;consumer"
